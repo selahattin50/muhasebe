@@ -1,0 +1,15 @@
+                    {/* Bakiye Kutusu */}
+                    <div className="col-span-2 mt-2 p-3 rounded-lg border-2 flex items-center justify-between" style={{ 
+                      borderColor: bakiyeRenk === 'red' ? '#ef4444' : bakiyeRenk === 'emerald' ? '#10b981' : '#94a3b8', 
+                      backgroundColor: bakiyeRenk === 'red' ? '#fef2f2' : bakiyeRenk === 'emerald' ? '#ecfdf5' : '#f8fafc' 
+                    }}>
+                      <span className="text-sm font-bold text-slate-700">CARİ BAKİYE</span>
+                      <div className="text-right">
+                        <div className={`text-2xl font-black ${bakiyeRenk === 'red' ? 'text-red-600' : bakiyeRenk === 'emerald' ? 'text-emerald-600' : 'text-slate-500'}`}>
+                          ₺{bakiyeAbs.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </div>
+                        <div className={`text-xs font-bold mt-0.5 ${bakiyeRenk === 'red' ? 'text-red-500' : bakiyeRenk === 'emerald' ? 'text-emerald-500' : 'text-slate-400'}`}>
+                          {bakiyeDurum}
+                        </div>
+                      </div>
+                    </div>

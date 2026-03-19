@@ -1,0 +1,190 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+}
+
+body {
+  @apply bg-slate-50 text-slate-900 font-sans;
+  -webkit-overflow-scrolling: touch;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Mobil için dokunmatik optimizasyon */
+* {
+  -webkit-tap-highlight-color: transparent;
+  -webkit-touch-callout: none;
+}
+
+button, a, input, select {
+  -webkit-tap-highlight-color: rgba(79, 70, 229, 0.1);
+}
+
+/* Tek satıra sığdırma için otomatik küçültme */
+.text-fit {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Stok kodu sütunu genişliği */
+.stock-code-col {
+  width: 4rem;
+  max-width: 4rem;
+  min-width: 4rem;
+}
+
+/* Fiyat sütunu genişliği */
+.price-col {
+  width: 5rem;
+  max-width: 5rem;
+  min-width: 5rem;
+}
+
+/* Otomatik yazı boyutu küçültme */
+table td, table th {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 200px;
+  font-size: clamp(0.65rem, 1.5vw, 0.75rem);
+}
+
+/* Responsive text scaling */
+@media (max-width: 1400px) {
+  table td, table th {
+    font-size: clamp(0.6rem, 1.2vw, 0.7rem);
+    padding: 0.25rem 0.5rem !important;
+  }
+}
+
+@media (max-width: 1200px) {
+  table td, table th {
+    font-size: clamp(0.55rem, 1vw, 0.65rem);
+    padding: 0.2rem 0.4rem !important;
+  }
+}
+
+@media (max-width: 992px) {
+  table td, table th {
+    font-size: clamp(0.5rem, 0.9vw, 0.6rem);
+    padding: 0.15rem 0.3rem !important;
+  }
+}
+
+/* Mobil ekranlar için özel ayarlar */
+@media (max-width: 768px) {
+  body {
+    font-size: 14px;
+  }
+  
+  table td, table th {
+    font-size: 0.5rem;
+    padding: 0.15rem 0.25rem !important;
+  }
+  
+  .card {
+    padding: 0.75rem !important;
+    border-radius: 1rem !important;
+  }
+  
+  input, select, button {
+    font-size: 14px !important;
+  }
+  
+  /* Tablolar yatay kaydırılabilir */
+  .overflow-x-auto {
+    -webkit-overflow-scrolling: touch;
+  }
+}
+
+@media (max-width: 480px) {
+  table td, table th {
+    font-size: 0.45rem;
+    padding: 0.1rem 0.2rem !important;
+  }
+  
+  .card {
+    padding: 0.5rem !important;
+  }
+  
+  h1, h2, h3 {
+    font-size: 1.25rem !important;
+  }
+}
+
+/* Fatura tablosu için özel küçültme */
+.invoice-table {
+  font-size: 0.65rem;
+}
+
+.invoice-table td,
+.invoice-table th {
+  padding: 0.25rem 0.5rem !important;
+  font-size: 0.65rem;
+}
+
+/* Container genişliğine göre otomatik ölçekleme */
+.auto-scale-text {
+  font-size: clamp(0.5rem, 1.5vw, 0.75rem);
+  line-height: 1.2;
+}
+
+/* Kart onizleme ve benzeri ekranlardaki asiri kucuk utility yazilari buyut */
+.text-\[9px\] {
+  font-size: 0.78rem !important;
+}
+
+.text-\[10px\] {
+  font-size: 0.86rem !important;
+}
+
+.text-\[11px\] {
+  font-size: 0.92rem !important;
+}
+
+.card {
+  @apply bg-white rounded-2xl shadow-sm border border-slate-200 p-6;
+}
+
+.btn-primary {
+  @apply bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg transition-colors font-medium;
+}
+
+.btn-secondary {
+  @apply bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 hover:text-blue-600 px-4 py-2 rounded-lg transition-colors font-medium;
+}
+
+button:hover {
+  @apply text-blue-600;
+}
+
+.input-field {
+  @apply w-full px-4 py-2 rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all;
+}
+
+/* Date & Time inputs customization to maximize space */
+input[type="date"], input[type="time"] {
+  padding: 0 !important;
+}
+
+input[type="date"]::-webkit-inner-spin-button,
+input[type="date"]::-webkit-calendar-picker-indicator,
+input[type="date"]::-webkit-clear-button,
+input[type="time"]::-webkit-inner-spin-button,
+input[type="time"]::-webkit-calendar-picker-indicator,
+input[type="time"]::-webkit-clear-button {
+  display: none !important;
+  -webkit-appearance: none !important;
+}
+
+input[type="date"]::-webkit-datetime-edit,
+input[type="time"]::-webkit-datetime-edit,
+input[type="date"]::-webkit-datetime-edit-fields-wrapper,
+input[type="time"]::-webkit-datetime-edit-fields-wrapper {
+  display: flex !important;
+  justify-content: center !important;
+  width: 100% !important;
+}

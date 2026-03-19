@@ -1,0 +1,28 @@
+{
+  "appId": "com.onmuhasebe.app",
+  "appName": "Ön Muhasebe",
+  "webDir": "dist",
+  "bundledWebRuntime": false,
+  "server": {
+    "androidScheme": "https",
+    "hostname": "localhost",
+    "iosScheme": "ionic"
+  },
+  "android": {
+    "allowMixedContent": true,
+    "captureInput": true,
+    "webContentsDebuggingEnabled": true
+  },
+  "plugins": {
+    "SplashScreen": {
+      "launchShowDuration": 2000,
+      "backgroundColor": "#4F46E5",
+      "showSpinner": true,
+      "spinnerColor": "#FFFFFF"
+    },
+    "StatusBar": {
+      "style": "dark",
+      "backgroundColor": "#4F46E5"
+    }
+  }
+}
