@@ -44,10 +44,18 @@ const isNativeApp = () => {
     !!cap?.isNativePlatform?.();
 };
 
+const buildDefaultUserDoc = (uid: string, email: string, role?: string) => ({
+  username: email.split('@')[0],
+  email,
+  role: normalizeRole(role || (email === 'selahattin50@gmail.com' ? 'YÃ¶netici' : 'Muhasebeci')),
+  uid,
+  createdAt: Timestamp.now()
+});
+
 const normalizeRole = (role: string | null | undefined) => {
   const value = String(role || '').trim();
   if (!value) return 'Muhasebeci';
-  if (value === 'Yönetici' || value === 'Y?netici' || value === 'Ynetici') return 'Yönetici';
+  if (value === 'Yönetici') return 'Yönetici';
   if (value === 'Muhasebeci') return 'Muhasebeci';
   if (value === 'Kasiyer') return 'Kasiyer';
   return value;
@@ -63,7 +71,7 @@ export const firebaseLogin = async (emailOrUsername: string, password: string, r
     const email = String(emailOrUsername || '').trim().toLowerCase();
 
     if (!email.includes('@')) {
-      return { success: false, message: 'L?tfen kay?tl? e-posta adresinizi girin.' };
+      return { success: false, message: 'Lütfen kayıtlı e-posta adresinizi girin.' };
     }
 
     console.log('Firebase Auth denemesi:', email);
@@ -97,13 +105,13 @@ export const firebaseLogin = async (emailOrUsername: string, password: string, r
       return { success: false, message: msg };
     }
 
-    // Kullanıcı bilgilerini Firestore'dan al
-    const usersRef = collection(db, COLLECTIONS.USERS);
-    const q = query(usersRef, where('email', '==', email));
-    const snapshot = await getDocs(q);
+    // Kullanıcı bilgilerini Firestore'dan al - uid ile direkt oku (güvenlik kurallarına uygun)
+    const uid = userCredential.user.uid;
+    const userDocRef = doc(db, COLLECTIONS.USERS, uid);
+    const userSnap = await getDoc(userDocRef);
 
-    if (!snapshot.empty) {
-      const userData = snapshot.docs[0].data();
+    if (userSnap.exists()) {
+      const userData = userSnap.data();
       if (userData.isBanned) {
         await authSignOut(auth);
         return { success: false, message: 'Bu hesap banlanmış. Yönetici ile görüşün.' };
@@ -112,35 +120,54 @@ export const firebaseLogin = async (emailOrUsername: string, password: string, r
       return {
         success: true,
         user: {
-          id: snapshot.docs[0].id,
-          username: userData.username,
-          email: userData.email || email, // Fallback to provided email
+          id: uid,
+          username: userData.username || email.split('@')[0],
+          email: userData.email || email,
           role: normalizeRole(userData.role)
         }
       };
     }
 
-    console.warn('Auth başarılı ama Firestore belgesi eksik! Otomatik oluşturuluyor...');
+    // uid ile bulunamadıysa email ile dene (eski kayıtlar için)
+    try {
+      const usersRef = collection(db, COLLECTIONS.USERS);
+      const q = query(usersRef, where('uid', '==', uid));
+      const snapshot = await getDocs(q);
+      if (!snapshot.empty) {
+        const userData = snapshot.docs[0].data();
+        if (userData.isBanned) {
+          await authSignOut(auth);
+          return { success: false, message: 'Bu hesap banlanmış. Yönetici ile görüşün.' };
+        }
+        return {
+          success: true,
+          user: {
+            id: snapshot.docs[0].id,
+            username: userData.username || email.split('@')[0],
+            email: userData.email || email,
+            role: normalizeRole(userData.role)
+          }
+        };
+      }
+    } catch (_) { /* izin yoksa geç */ }
 
-    // Eksik dkman1 otomatik oluştur (Hesab1 tamir et)
+    console.warn('Firestore belgesi eksik, otomatik oluşturuluyor...');
     const newUsername = email.split('@')[0];
-    const userRole = email === 'selahattin50@gmail.com' ? 'Yönetici' : 'Muhasebeci'; // Varsayılan yetki
-
+    const userRole = email === 'selahattin50@gmail.com' ? 'Yönetici' : 'Muhasebeci';
     const newUserDoc = {
       username: newUsername,
       email: email,
       role: normalizeRole(userRole),
-      uid: userCredential.user.uid,
+      uid,
       createdAt: Timestamp.now(),
-      repaired: true
     };
-
-    const docRef = await addDoc(collection(db, COLLECTIONS.USERS), newUserDoc);
+    // uid'yi doküman ID'si olarak kullan
+    await setDoc(doc(db, COLLECTIONS.USERS, uid), newUserDoc);
 
     return {
       success: true,
       user: {
-        id: docRef.id,
+        id: uid,
         username: newUsername,
         email: email,
         role: normalizeRole(userRole)
@@ -157,10 +184,10 @@ export const firebaseRegister = async (email: string, password: string, fullName
     const userCredential = await createUserWithEmailAndPassword(auth, email, password);
     const userId = userCredential.user.uid;
 
-    // E-posta adresinden kullan1c1 ad1n1 oluştur (rn: mehmet@gmail.com -> mehmet)
+    // E-posta adresinden kullanıcı adını oluştur (rn: mehmet@gmail.com -> mehmet)
     const username = email.split('@')[0];
 
-    // Auth'da oluşturuldu, _imdi users koleksiyonuna ekle
+    // Auth'da oluşturuldu, şimdi users koleksiyonuna ekle
     await addDoc(collection(db, COLLECTIONS.USERS), {
       username,
       fullName,
@@ -204,7 +231,7 @@ export const firebaseSignOut = async () => {
   await authSignOut(auth);
 };
 
-// Geerli kullan1c1 ID'sini getir
+// Geerli kullanıcı ID'sini getir
 const getCurrentUserId = () => {
   const user = auth.currentUser;
   if (!user) {
@@ -339,7 +366,7 @@ export const getInvoices = async () => {
 
 export const addInvoice = async (data: any) => {
   return await runTransaction(db, async (transaction) => {
-    // 1. nce gerekli tm okuma (READ) i_lemlerini yapmal1y1z
+    // 1. önce gerekli tüm okuma (READ) işlemlerini yapmalıy1z
     const stockData = [];
     if (data.items && Array.isArray(data.items)) {
       for (const item of data.items) {
@@ -349,7 +376,7 @@ export const addInvoice = async (data: any) => {
       }
     }
 
-    // 2. Tm okumalar bittikten sonra yazma (WRITE) i_lemlerine geebiliriz
+    // 2. Tm okumalar bittikten sonra yazma (WRITE) işlemlerine geçebiliriz
     const uid = getCurrentUserId();
     const invoiceRef = doc(collection(db, COLLECTIONS.INVOICES));
     transaction.set(invoiceRef, {
@@ -358,7 +385,7 @@ export const addInvoice = async (data: any) => {
       createdAt: Timestamp.now()
     });
 
-    // Stok gncelleme i_lemleri
+    // Stok güncelleme işlemleri
     for (const update of stockData) {
       if (update.snap.exists()) {
         const stockDoc = update.snap.data();
@@ -373,7 +400,7 @@ export const addInvoice = async (data: any) => {
       }
     }
 
-    // Cari bakiye gncelleme
+    // Cari bakiye güncelleme
     if (data.cari_id) {
       const cariRef = doc(db, COLLECTIONS.CARIS, String(data.cari_id));
       const balanceChange = data.type === 'Satış' ? data.total_amount : -data.total_amount;
@@ -401,7 +428,7 @@ export const deleteInvoice = async (id: string) => {
     const stockUpdates: { ref: any, change: number }[] = [];
 
     // 1. READS: Collect all needed snapshots
-    // Stoklar1 oku
+    // Stokları oku
     if (data.items && Array.isArray(data.items)) {
       for (const item of data.items) {
         const stockRef = doc(db, COLLECTIONS.STOCKS, String(item.stok_id));
@@ -421,7 +448,7 @@ export const deleteInvoice = async (id: string) => {
     let balanceChange = 0;
     if (data.cari_id) {
       cariRef = doc(db, COLLECTIONS.CARIS, String(data.cari_id));
-      await transaction.get(cariRef); // Just to satisfy read-before-write if we need to check existence, though not strictly necessary if we just increment
+      await transaction.get(cariRef); // Just to satisfy read-before-write if we need to check existeönce, though not strictly necessary if we just increment
       balanceChange = data.type === 'Satış' ? -data.total_amount : data.total_amount;
     }
 
@@ -456,7 +483,7 @@ export const updateInvoice = async (id: string, newData: any) => {
 
     const oldData = invoiceSnap.data();
 
-    // Stok referanslar1n1 topla (hem eski hem yeni)
+    // Stok referanslarını topla (hem eski hem yeni)
     const stockRefs: { [id: string]: any } = {};
     if (oldData.items) {
       oldData.items.forEach((item: any) => {
@@ -469,7 +496,7 @@ export const updateInvoice = async (id: string, newData: any) => {
       });
     }
 
-    // 1. READS: Tm stoklar1 ve cariyi oku
+    // 1. READS: Tm stokları ve cariyi oku
     const stockSnaps: { [id: string]: any } = {};
     for (const [sId, ref] of Object.entries(stockRefs)) {
       stockSnaps[sId] = await transaction.get(ref);
@@ -507,7 +534,7 @@ export const updateInvoice = async (id: string, newData: any) => {
       }
     }
 
-    // Cari bakiye gncelle
+    // Cari bakiye göncelle
     if (oldData.cari_id) {
       const oldCariRef = doc(db, COLLECTIONS.CARIS, String(oldData.cari_id));
       const oldBalanceBack = oldData.type === 'Satış' ? -oldData.total_amount : oldData.total_amount;
@@ -519,7 +546,7 @@ export const updateInvoice = async (id: string, newData: any) => {
       transaction.update(newCariRef, { balance: increment(newBalanceApply) });
     }
 
-    // Faturay1 gncelle
+    // Faturayı göncelle
     transaction.update(invoiceRef, {
       ...newData,
       updatedAt: Timestamp.now()
@@ -538,7 +565,7 @@ export const getTransactions = async () => {
     const transactions = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
     console.log('Transactions fetched:', transactions.length);
 
-    // Tarih s1ralamas1n1 client-side yap
+    // Tarih sıralamasını client-side yap
     transactions.sort((a: any, b: any) => {
       const dateA = a.date || '';
       const dateB = b.date || '';
@@ -566,7 +593,7 @@ export const addTransaction = async (data: any) => {
         createdAt: Timestamp.now()
       });
 
-      // Cari bakiye guncelleme
+      // Cari bakiye guöncelleme
       if (data.cari_id) {
         const cariRef = doc(db, COLLECTIONS.CARIS, String(data.cari_id));
         // TAHSİLAT (Alacak) bakiyeyi azaltır (-), ÖDEME (Borç) bakiyeyi artırır (+)
@@ -678,7 +705,7 @@ export const updateTransaction = async (id: string, newData: any) => {
         transaction.update(newCariRef, { balance: increment(newApply) });
       }
 
-      // 3. Kasa kayd1n1 gncelle
+      // 3. Kasa kaydını göncelle
       const kasaQuery = query(
         collection(db, COLLECTIONS.KASA),
         where('date', '==', oldData.date),
@@ -698,7 +725,7 @@ export const updateTransaction = async (id: string, newData: any) => {
         });
       }
 
-      // 4. Hareketi gncelle
+      // 4. Hareketi göncelle
       transaction.update(transRef, {
         ...newData,
         updatedAt: Timestamp.now()
@@ -760,7 +787,7 @@ export const recalculateCariBalance = async (cariId: string) => {
   }
 };
 
-// Settings İşlemleri (Tm ayarlar art1k tek bir dkmanda: settings/uid)
+// Settings İşlemleri (Tm ayarlar artık tek bir dokümanda: settings/uid)
 export const getSettings = async () => {
   const uid = getCurrentUserId();
   const docRef = doc(db, COLLECTIONS.SETTINGS, uid);
@@ -785,7 +812,7 @@ export const updateSettings = async (settings: any) => {
   return { success: true };
 };
 
-// Kullanıcılar1 getir (Gvenlik filtreli)
+// Kullanıcıları getir (Gvenlik filtreli)
 export const getUsers = async () => {
   const uid = getCurrentUserId();
   const usersRef = collection(db, COLLECTIONS.USERS);
@@ -817,7 +844,7 @@ export const getUsers = async () => {
     isBanned: !!me.isBanned
   }];
 };
-// Kullanıcılar1 tm detaylar1yla getir (Migration iin)
+// Kullanıcıları tüm detaylarıyla getir (Migration için)
 export const getFullUsers = async () => {
   const snapshot = await getDocs(collection(db, COLLECTIONS.USERS));
   return snapshot.docs.map(doc => ({
@@ -897,7 +924,7 @@ export const migrateUserData = async (fromEmail: string, toEmail: string) => {
   }
 };
 
-// Sistem genelindeki tm verileri kontrol et (Hangi kullan1c1da ne kadar veri var?)
+// Sistem genelindeki tüm verileri kontrol et (Hangi kullanıc1da ne kadar veri var?)
 export const scanAllFirestoreData = async () => {
   const collectionsList = [COLLECTIONS.CARIS, COLLECTIONS.STOCKS, COLLECTIONS.INVOICES, COLLECTIONS.KASA, COLLECTIONS.TRANSACTIONS];
   const results: any = {};
@@ -918,7 +945,7 @@ export const scanAllFirestoreData = async () => {
   return results;
 };
 
-// Kullanıcı hesab1n1 (Firestore kayd1n1) sil
+// Kullanıcı hesabını (Firestore kaydın1) sil
 export const deleteUserAccount = async (userId: string) => {
   try {
     await deleteDoc(doc(db, COLLECTIONS.USERS, userId));
@@ -942,7 +969,7 @@ export const toggleUserBanStatus = async (userId: string, isBanned: boolean) => 
   }
 };
 
-// Yerel (Offline) verileri Firebase'e toplu ykle
+// Yerel (Offline) verileri Firebase'e toplu yükle
 export const batchUploadLocalData = async (type: string, data: any[]) => {
   const uid = getCurrentUserId();
   let count = 0;
@@ -957,7 +984,7 @@ export const batchUploadLocalData = async (type: string, data: any[]) => {
   if (!collName) return 0;
 
   for (const item of data) {
-    // ID alan1n1 1kar (Firebase yeni ID verecek)
+    // ID alanını çıkar (Firebase yeni ID verecek)
     const { id, ...cleanData } = item;
     await addDoc(collection(db, collName), {
       ...cleanData,
@@ -1010,4 +1037,14 @@ export const recalculateAllCariBalances = async () => {
   }
 
   return { success: true };
+};
+
+export const updateUserRole = async (userId: string, role: string) => {
+  try {
+    await updateDoc(doc(db, COLLECTIONS.USERS, userId), { role });
+    return { success: true, role };
+  } catch (error) {
+    console.error('updateUserRole error:', error);
+    throw error;
+  }
 };

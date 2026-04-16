@@ -13,7 +13,7 @@ import arialFontInline from './assets/fonts/arial.ttf?inline';
 import arialBoldFontInline from './assets/fonts/arialbd.ttf?inline';
 import arialItalicFontInline from './assets/fonts/ariali.ttf?inline';
 import * as API from './api';
-import { formatBalance, displayBalance, formatCurrency, formatCurrencyColor, parseNumber, formatForInput } from './utils';
+import { formatBalance, displayBalance, displayPrice, formatCurrency, formatCurrencyColor, parseNumber, formatForInput } from './utils';
 import {
   LayoutDashboard,
   Users,
@@ -41,9 +41,19 @@ import {
   Edit,
   ArrowUpDown,
   Share2,
-  RefreshCw
+  RefreshCw,
+  UserPlus,
+  FilePlus,
+  Users2,
+  Wallet2,
+  Package2
 } from 'lucide-react';
-import { motion, AnimatePresence } from 'motion/react';
+// motion/react removed - causes Android WebView crash
+const AnimatePresence = ({ children }: { children: React.ReactNode; mode?: string }) => <>{children}</>;
+const motion = {
+  div: (props: any) => { const { initial, animate, exit, transition, whileHover, whileTap, ...rest } = props; return <div {...rest} />; },
+  button: (props: any) => { const { initial, animate, exit, transition, whileHover, whileTap, ...rest } = props; return <button {...rest} />; },
+};
 
 // --- Types ---
 
@@ -506,7 +516,7 @@ const createA5InvoicePDF = (invoiceData: any, stocks: any[], caris: Cari[] = [])
       fixTR(item.unit_type === 'base' ? stok?.base_unit : (stok?.alt_unit || stok?.base_unit)), // Birimi
       realQty.toFixed(0), // Temel Mik.
       fixTR(stok?.base_unit || ''), // Temel (birim)
-      displayBalance(item.price),
+      displayPrice(item.price),
       item.discount > 0 ? `%${item.discount}` : '0',
       `%${item.tax}`,
       displayBalance(lineTotal)
@@ -766,12 +776,21 @@ const shareInvoiceOnWhatsApp = async (invoiceData: any, stocks: any[], caris: Ca
       return `- ${fixTR(stok?.name || 'Ürün')}\n  ${item.qty} ${fixTR(unitLabel)} x ₺${item.price.toLocaleString('tr-TR')} = ₺${lineTotal.toLocaleString('tr-TR')}`;
     }).join('\n');
 
+    const formatCurrency = (amount: number) => {
+      return new Intl.NumberFormat('tr-TR', {
+        style: 'currency',
+        currency: 'TRY',
+        minimumFractionDigits: 3,
+        maximumFractionDigits: 3
+      }).format(amount);
+    };
+
     const text = `*${fixTR(invoiceData.type)} FATURASI*\n` +
       `--------------------------\n` +
       `*Fatura No:* ${fixTR(invoiceData.invoice_no)}\n` +
       `*Cari:* ${fixTR(invoiceData.cari_name)}\n` +
       `*Tarih:* ${displayDate(fixTR(invoiceData.date))}\n` +
-      `*Toplam Tutar:* ₺${invoiceData.total_amount.toLocaleString('tr-TR', { minimumFractionDigits: 2 })}\n\n` +
+      `*Toplam Tutar:* ${formatCurrency(invoiceData.total_amount)}\n\n` +
       `*HAREKETLER:* \n` +
       itemsText +
       `\n\n_Bu fatura Ön Muhasebe sistemi ile paylaşılmıştır._`;
@@ -917,8 +936,8 @@ const Login = ({ onLogin }: { onLogin: (user: User) => void }) => {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center relative overflow-y-auto font-sans bg-[#131b31] p-6 overflow-hidden">
-      {/* Stable Premium Background Globs (No movement to avoid ripple/wave effect) */}
+    <div className="h-[100dvh] flex items-center justify-center relative font-sans bg-[#131b31] p-3 sm:p-6 overflow-hidden">
+      {/* Stable Premium Background Globs */}
       <div className="absolute top-[-10%] left-[-10%] w-[70%] h-[70%] bg-indigo-500/10 rounded-full blur-[120px] pointer-events-none" />
       <div className="absolute bottom-[-10%] right-[-10%] w-[70%] h-[70%] bg-blue-500/10 rounded-full blur-[120px] pointer-events-none" />
       <div className="absolute top-[30%] right-[10%] w-[40%] h-[40%] bg-indigo-400/5 rounded-full blur-[100px] pointer-events-none" />
@@ -929,23 +948,23 @@ const Login = ({ onLogin }: { onLogin: (user: User) => void }) => {
         transition={{ duration: 0.8, ease: "circOut" }}
         className="max-w-md w-full relative z-10"
       >
-        <div className="bg-blue-50/50/95 backdrop-blur-3xl rounded-[3rem] shadow-[0_32px_120px_rgba(0,0,0,0.3)] p-10 border border-white/40 ring-1 ring-white/20 relative overflow-hidden">
-          <div className="text-center mb-10 relative">
+        <div className={`bg-blue-50/50/95 backdrop-blur-3xl rounded-[2rem] sm:rounded-[3rem] shadow-[0_32px_120px_rgba(0,0,0,0.3)] ${isRegistering ? 'p-4 sm:p-10' : 'p-5 sm:p-10'} border border-white/40 ring-1 ring-white/20 relative overflow-hidden transition-all duration-300`}>
+          <div className={`text-center ${isRegistering ? 'mb-4 sm:mb-10' : 'mb-6 sm:mb-10'} relative`}>
             <motion.div
               initial={{ scale: 0.5, rotate: -15 }}
               animate={{ scale: 1, rotate: 0 }}
               transition={{ delay: 0.3, type: "spring", damping: 10 }}
-              className="bg-gradient-to-tr from-indigo-600 via-indigo-500 to-blue-500 w-20 h-20 rounded-3xl flex items-center justify-center mx-auto mb-8 shadow-2xl shadow-indigo-500/40 relative group"
+              className={`bg-gradient-to-tr from-indigo-600 via-indigo-500 to-blue-500 ${isRegistering ? 'w-12 h-12 sm:w-20 sm:h-20 mb-2 sm:mb-8' : 'w-16 h-16 sm:w-20 sm:h-20 mb-4 sm:mb-8'} rounded-2xl sm:rounded-3xl flex items-center justify-center mx-auto shadow-2xl shadow-indigo-500/40 relative group`}
             >
               <div className="absolute inset-0 bg-blue-50/50/20 rounded-3xl animate-pulse group-hover:hidden" />
-              <LayoutDashboard className="text-white w-10 h-10 drop-shadow-lg" />
+              <LayoutDashboard className={`${isRegistering ? 'text-white w-7 h-7 sm:w-10 sm:h-10' : 'text-white w-10 h-10'} drop-shadow-lg`} />
             </motion.div>
 
-            <h1 className="text-3xl font-black text-slate-800 tracking-tight mb-2">
+            <h1 className={`${isRegistering ? 'text-2xl sm:text-3xl' : 'text-3xl'} font-black text-slate-800 tracking-tight mb-1 sm:mb-2`}>
               Ön Muhasebe
             </h1>
 
-            <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-indigo-50 rounded-full mb-6">
+            <div className={`inline-flex items-center gap-2 px-3 py-1 bg-indigo-50 rounded-full ${isRegistering ? 'mb-2 sm:mb-6' : 'mb-3 sm:mb-6'}`}>
               <div className={`w-2 h-2 rounded-full ${serverStatus === 'online' ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.8)]' :
                 serverStatus === 'offline' ? 'bg-red-500 animate-pulse' : 'bg-slate-300 animate-pulse'
                 }`} />
@@ -955,16 +974,16 @@ const Login = ({ onLogin }: { onLogin: (user: User) => void }) => {
               </span>
             </div>
 
-            <p className="text-indigo-900/60 font-bold text-sm leading-relaxed">{isRegistering ? 'Premium hesaba katılın' : 'Kontrol paneline güvenle erişin'}</p>
+            {!isRegistering && <p className="text-indigo-900/60 font-bold text-sm leading-relaxed">{'Kontrol paneline güvenle erişin'}</p>}
           </div>
 
-          <form onSubmit={handleSubmit} className="space-y-5 relative">
-            <div className="space-y-1.5">
-              <label className="block text-[10px] font-black text-indigo-900/30 uppercase tracking-[0.2em] ml-2">E-posta</label>
+          <form onSubmit={handleSubmit} className={`${isRegistering ? 'space-y-2.5 sm:space-y-5' : 'space-y-4 sm:space-y-5'} relative`}>
+            <div className={`${isRegistering ? 'space-y-1' : 'space-y-1.5'}`}>
+              <label className="block text-[9px] sm:text-[10px] font-black text-indigo-900/30 uppercase tracking-[0.2em] ml-2">E-posta</label>
               <input
                 type="text"
-                className="w-full bg-blue-50/50 border-2 border-slate-100 rounded-[1.5rem] px-6 py-4 text-slate-800 placeholder-slate-300 focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 focus:bg-blue-50/50 transition-all font-bold text-sm shadow-sm"
-                placeholder="selahattin50@gmail.com"
+                className="w-full bg-blue-50/50 border-2 border-slate-100 rounded-[1rem] sm:rounded-[1.5rem] px-4 sm:px-6 py-2.5 sm:py-4 text-slate-800 placeholder-slate-300 focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all font-bold text-sm shadow-sm"
+                placeholder=""
                 value={email}
                 onChange={(e) => { setEmail(e.target.value); setError(''); setResetMessage(''); }}
                 required
@@ -973,22 +992,22 @@ const Login = ({ onLogin }: { onLogin: (user: User) => void }) => {
 
             {isRegistering && (
               <>
-                <div className="space-y-1.5">
-                  <label className="block text-[10px] font-black text-indigo-900/30 uppercase tracking-[0.2em] ml-2">Ad Soyad</label>
+                <div className="space-y-1">
+                  <label className="block text-[9px] sm:text-[10px] font-black text-indigo-900/30 uppercase tracking-[0.2em] ml-2">Ad Soyad</label>
                   <input
                     type="text"
-                    className="w-full bg-blue-50/50 border-2 border-slate-100 rounded-[1.5rem] px-6 py-4 text-slate-800 placeholder-slate-300 focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 focus:bg-blue-50/50 transition-all font-bold text-sm shadow-sm"
-                    placeholder="Adın1z ve Soyad1n1z"
+                    className="w-full bg-blue-50/50 border-2 border-slate-100 rounded-[1rem] sm:rounded-[1.5rem] px-4 sm:px-6 py-2.5 sm:py-4 text-slate-800 placeholder-slate-300 focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all font-bold text-sm shadow-sm"
+                    placeholder="Adınız ve Soyadınız"
                     value={fullName}
                     onChange={(e) => { setFullName(e.target.value); setError(''); }}
                     required={isRegistering}
                   />
                 </div>
-                <div className="space-y-1.5">
-                  <label className="block text-[10px] font-black text-indigo-900/30 uppercase tracking-[0.2em] ml-2">Telefon</label>
+                <div className="space-y-1">
+                  <label className="block text-[9px] sm:text-[10px] font-black text-indigo-900/30 uppercase tracking-[0.2em] ml-2">Telefon</label>
                   <input
                     type="tel"
-                    className="w-full bg-blue-50/50 border-2 border-slate-100 rounded-[1.5rem] px-6 py-4 text-slate-800 placeholder-slate-300 focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 focus:bg-blue-50/50 transition-all font-bold text-sm shadow-sm"
+                    className="w-full bg-blue-50/50 border-2 border-slate-100 rounded-[1rem] sm:rounded-[1.5rem] px-4 sm:px-6 py-2.5 sm:py-4 text-slate-800 placeholder-slate-300 focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all font-bold text-sm shadow-sm"
                     placeholder="05xxxxxxxxx"
                     value={phone}
                     onChange={(e) => { setPhone(e.target.value); setError(''); }}
@@ -998,17 +1017,17 @@ const Login = ({ onLogin }: { onLogin: (user: User) => void }) => {
               </>
             )}
 
-            <div className="space-y-1.5">
+            <div className={`${isRegistering ? 'space-y-1' : 'space-y-1.5'}`}>
               <div className="flex justify-between items-center ml-2">
-                <label className="block text-[10px] font-black text-indigo-900/30 uppercase tracking-[0.2em]">Şifre</label>
+                <label className="block text-[9px] sm:text-[10px] font-black text-indigo-900/30 uppercase tracking-[0.2em]">Şifre</label>
                 {!isRegistering && (
                   <button type="button" onClick={handleResetPassword} className="text-[10px] font-bold text-indigo-500 hover:text-indigo-600 transition-colors uppercase tracking-tight">Şifremi Unuttum?</button>
                 )}
               </div>
               <input
                 type="password"
-                className="w-full bg-blue-50/50 border-2 border-slate-100 rounded-[1.5rem] px-6 py-4 text-slate-800 placeholder-slate-300 focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 focus:bg-blue-50/50 transition-all font-bold text-sm shadow-sm"
-                placeholder="********"
+                className="w-full bg-blue-50/50 border-2 border-slate-100 rounded-[1rem] sm:rounded-[1.5rem] px-4 sm:px-6 py-2.5 sm:py-4 text-slate-800 placeholder-slate-300 focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all font-bold text-sm shadow-sm"
+                placeholder=""
                 value={password}
                 onChange={(e) => { setPassword(e.target.value); setError(''); }}
                 required
@@ -1016,11 +1035,11 @@ const Login = ({ onLogin }: { onLogin: (user: User) => void }) => {
             </div>
 
             {isRegistering && (
-              <div className="space-y-1.5">
-                <label className="block text-[10px] font-black text-indigo-900/30 uppercase tracking-[0.2em] ml-2">Şifre Tekrar</label>
+              <div className="space-y-1">
+                <label className="block text-[9px] sm:text-[10px] font-black text-indigo-900/30 uppercase tracking-[0.2em] ml-2">Şifre Tekrar</label>
                 <input
                   type="password"
-                  className="w-full bg-blue-50/50 border-2 border-slate-100 rounded-[1.5rem] px-6 py-4 text-slate-800 placeholder-slate-300 focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 focus:bg-blue-50/50 transition-all font-bold text-sm shadow-sm"
+                  className="w-full bg-blue-50/50 border-2 border-slate-100 rounded-[1rem] sm:rounded-[1.5rem] px-4 sm:px-6 py-2.5 sm:py-4 text-slate-800 placeholder-slate-300 focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all font-bold text-sm shadow-sm"
                   placeholder="********"
                   value={passwordConfirm}
                   onChange={(e) => { setPasswordConfirm(e.target.value); setError(''); }}
@@ -1067,7 +1086,7 @@ const Login = ({ onLogin }: { onLogin: (user: User) => void }) => {
             <button
               type="submit"
               disabled={loading}
-              className={`relative overflow-hidden w-full bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-700 hover:to-blue-700 text-white font-black py-5 rounded-[1.5rem] shadow-xl shadow-indigo-500/40 active:scale-[0.98] transition-all flex items-center justify-center gap-3 disabled:opacity-70 disabled:cursor-not-allowed group uppercase tracking-widest text-sm`}
+              className={`relative overflow-hidden w-full bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-700 hover:to-blue-700 text-white font-black ${isRegistering ? 'py-3.5 sm:py-5' : 'py-4 sm:py-5'} rounded-[1rem] sm:rounded-[1.5rem] shadow-xl shadow-indigo-500/40 active:scale-[0.98] transition-all flex items-center justify-center gap-3 disabled:opacity-70 disabled:cursor-not-allowed group uppercase tracking-widest text-sm`}
             >
               {loading ? (
                 <>
@@ -1095,7 +1114,7 @@ const Login = ({ onLogin }: { onLogin: (user: User) => void }) => {
         </div>
 
         {/* Footer info */}
-        <p className="text-[10px] text-white/30 mt-10 text-center font-black tracking-[0.3em] uppercase">
+        <p className="text-[10px] text-white/30 mt-6 sm:mt-10 text-center font-black tracking-[0.3em] uppercase">
           Gelal Teknoloji " v2.0
         </p>
       </motion.div>
@@ -1144,6 +1163,17 @@ const normalizeInvoice = (invoice: any): Invoice => ({
   total_amount: Number(invoice?.total_amount) || 0,
   items: normalizeInvoiceItems(invoice?.items),
 });
+
+
+
+const BackButton = ({ onClick }: { onClick: () => void }) => (
+  <button 
+    onClick={onClick} 
+    className="p-2 -ml-2 mr-1 text-slate-600 hover:text-indigo-600 active:scale-95 transition-all outline-none"
+  >
+    <ArrowLeft size={24} />
+  </button>
+);
 
 export default function App() {
   const [user, setUser] = useState<User | null>(null);
@@ -1224,31 +1254,35 @@ export default function App() {
     return !!item && item.roles.includes(normalizeRoleLabel(user.role));
   };
 
-  useEffect(() => {
-    const handleBackButton = async () => {
-      // E?er kullan?c? giri? yapmam?sa zaten geri tu?u sistemin i?idir
-      if (!user) return;
+  
+  const handleGlobalBack = async () => {
+    if (!user) return;
 
-      if (view === 'dashboard') {
-        // Ana sayfadaysa uygulamadan ?k
-        CapApp.exitApp();
+    if (view === 'dashboard') {
+      CapApp.exitApp();
+    } else {
+      // Define root sub-views for each module
+      const isModuleRoot =
+        (view === 'cari' && subView === 'menu') ||
+        (view === 'stok' && subView === 'selection') ||
+        (view === 'fatura' && subView === 'create_selection') ||
+        (view === 'kasa' && subView === 'list') ||
+        (view === 'users' && subView === 'list');
+
+      if (isModuleRoot) {
+        setView('dashboard');
       } else {
-        // Alt sayfalardaysa bir ?ste ?k
-        if (subView !== 'list' && subView !== 'menu' && subView !== 'selection' && subView !== 'create_selection') {
-          // Add, Edit, Report gibi detay sayfalar?ndaysa listeye d?n
-          if (view === 'stok') setSubView('selection');
-          else if (view === 'cari') setSubView('menu');
-          else if (view === 'fatura') setSubView('create_selection');
-          else setSubView('list');
-        } else {
-          // Listenin ana men?s?ndeyse dashboard'a d?n
-          setView('dashboard');
-        }
+        // We are in a deeper level (List, Add, Edit, etc.), go to module root
+        if (view === 'stok') setSubView('selection');
+        else if (view === 'cari') setSubView('menu');
+        else if (view === 'fatura') setSubView('create_selection');
+        else setView('dashboard');
       }
-    };
+    }
+  };
 
-    const listener = CapApp.addListener('backButton', handleBackButton);
-
+  useEffect(() => {
+    const listener = CapApp.addListener('backButton', handleGlobalBack);
     return () => {
       listener.then(l => l.remove());
     };
@@ -1355,25 +1389,27 @@ export default function App() {
     ].filter(item => item.visible);
 
     return (
-      <div className="flex flex-col items-center justify-start min-h-[60vh] pt-4 space-y-6">
-        <div className="flex flex-col gap-4 w-full max-w-2xl">
+      <div className="flex flex-col h-full bg-blue-50/50 overflow-hidden">
+        <div className="w-full max-w-2xl mx-auto px-4 py-4 flex flex-col gap-4 relative">
+          <div className="pt-2"></div>
+          <div className="flex-1 overflow-y-auto custom-scrollbar pt-1 space-y-2.5">
           {dashboardCards.map((item, i) => (
             <motion.div
               key={i}
               whileHover={{ x: 8 }}
               whileTap={{ scale: 0.99 }}
               onClick={item.action}
-              className={`p-5 rounded-[2rem] shadow-sm border ${item.light} ${item.border} cursor-pointer group hover:shadow-lg transition-all`}
+              className={`p-3.5 rounded-[1.8rem] shadow-sm border ${item.light} ${item.border} cursor-pointer group hover:shadow-lg transition-all`}
             >
-              <div className="flex items-center gap-5">
-                <div className={`${item.color} p-4 rounded-2xl text-white shadow-lg`}>
-                  <item.icon size={28} />
+              <div className="flex items-center gap-4">
+                <div className={`${item.color} p-3 rounded-xl text-white shadow-md`}>
+                  <item.icon size={24} />
                 </div>
                 <div className="flex-1">
-                  <h3 className={`text-xl font-black ${item.text} tracking-tight group-hover:scale-105 transition-transform origin-left uppercase`}>{item.label}</h3>
-                  <p className={`${item.text} opacity-70 text-xs font-bold uppercase tracking-wider mt-0.5`}>{item.desc}</p>
+                  <h3 className={`text-lg font-black ${item.text} tracking-tight group-hover:scale-105 transition-transform origin-left uppercase`}>{item.label}</h3>
+                  <p className={`${item.text} opacity-70 text-[10px] font-bold uppercase tracking-wider mt-0.5`}>{item.desc}</p>
                 </div>
-                <ChevronRight className={`${item.text} opacity-30 group-hover:translate-x-1 group-hover:opacity-100 transition-all`} size={24} />
+                <ChevronRight className={`${item.text} opacity-30 group-hover:translate-x-1 group-hover:opacity-100 transition-all`} size={20} />
               </div>
             </motion.div>
           ))}
@@ -1381,7 +1417,7 @@ export default function App() {
 
         {dashboardQuickActions.length > 0 && (
           <div className="w-full max-w-2xl">
-            <div className={`grid gap-3 ${dashboardQuickActions.length === 1 ? 'grid-cols-1' : 'grid-cols-2'}`}>
+            <div className={`grid gap-2.5 ${dashboardQuickActions.length === 1 ? 'grid-cols-1' : 'grid-cols-2'}`}>
               {dashboardQuickActions.map((item) => (
                 <button
                   key={item.id}
@@ -1410,6 +1446,7 @@ export default function App() {
         >
           <ArrowRight size={16} /> Güvenli Çıkış Yap
         </button>
+        </div>
       </div>
     );
   };
@@ -1469,91 +1506,94 @@ export default function App() {
       { id: 'movements', label: 'Cari Hareket Raporu', icon: History },
     ];
 
-    const BackButton = ({ onClick }: { onClick: () => void }) => (
-      <button
-        onClick={onClick}
-        className="flex items-center gap-2 text-slate-500 hover:text-indigo-600 transition-colors mb-6 group"
-      >
-        <div className="p-2 bg-blue-50/50 border border-slate-200 rounded-xl group-hover:border-indigo-200 group-hover:bg-indigo-50 transition-all">
-          <ArrowLeft size={18} />
-        </div>
-        <span className='font-semibold'>Geri Dön</span>
-      </button>
-    );
+
     if (subView === 'add' || (subView === 'edit' && editingCari)) {
       const isEdit = subView === 'edit';
       return (
-        <div className="max-w-2xl mx-auto">
-          <BackButton onClick={() => { setSubView('menu'); setEditingCari(null); }} />
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-xl font-bold">{isEdit ? 'Cari Hesap G\u00fcncelle' : 'Yeni Cari Ekle'}</h2>
+        <div className="max-w-2xl mx-auto h-full flex flex-col overflow-hidden">
+          <div className="flex items-center justify-center gap-3 shrink-0 pt-2 pb-2 px-4 relative">
+            <div className="absolute left-4">
+              <BackButton onClick={() => { setSubView('menu'); setEditingCari(null); }} />
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="p-1 bg-indigo-500 rounded-lg text-white shadow-sm">
+                <UserPlus size={18} />
+              </div>
+              <h2 className="text-lg font-extrabold text-slate-800 uppercase tracking-tight">{isEdit ? 'Hesap Güncelle' : 'Yeni Cari Ekle'}</h2>
+            </div>
           </div>
-          <form className="card space-y-3 p-4" onSubmit={async (e) => {
-            e.preventDefault();
-            const formData = new FormData(e.currentTarget);
-            const payload = Object.fromEntries(formData);
 
-            if (isEdit && editingCari) {
-              await API.updateCariById(editingCari.id, payload);
-            } else {
-              await API.createCari(payload);
-            }
-            setSubView('menu');
-            setEditingCari(null);
-            fetchData();
-          }}>
-            <div>
-              <label className="block text-xs font-medium text-slate-700 mb-1">Cari Kodu</label>
-              <input name="code" type="text" className="input-field text-sm py-1.5" defaultValue={editingCari?.code} required />
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-slate-700 mb-1">{'Ticari Unvan\u0131'}</label>
-              <input name="name" type="text" className="input-field text-sm py-1.5" defaultValue={editingCari?.name} required />
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-slate-700 mb-1">Yetkilisi</label>
-              <input name="authorized_person" type="text" className="input-field text-sm py-1.5" defaultValue={editingCari?.authorized_person} />
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-slate-700 mb-1">Vergi Dairesi</label>
-              <input name="tax_office" type="text" className="input-field text-sm py-1.5" defaultValue={editingCari?.tax_office} />
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-slate-700 mb-1">Vergi No</label>
-              <input name="tax_number" type="text" className="input-field text-sm py-1.5" defaultValue={editingCari?.tax_number} />
-            </div>
-            <div className="grid grid-cols-2 gap-3">
+          <div className="flex-1 overflow-y-auto px-1 pb-20 sm:pb-4 custom-scrollbar">
+            <form className="bg-white rounded-2xl shadow-sm border border-slate-200 p-3 space-y-2" onSubmit={async (e) => {
+              e.preventDefault();
+              const formData = new FormData(e.currentTarget);
+              const payload = Object.fromEntries(formData);
+
+              if (isEdit && editingCari) {
+                await API.updateCariById(editingCari.id, payload);
+              } else {
+                await API.createCari(payload);
+              }
+
+              setSubView('menu');
+              setEditingCari(null);
+              fetchData();
+            }}>
               <div>
-                <label className="block text-xs font-medium text-slate-700 mb-1">Telefon 1</label>
-                <input name="phone" type="text" className="input-field text-sm py-1.5" defaultValue={editingCari?.phone} />
+                <label className="block text-xs font-semibold text-slate-500 uppercase mb-0.5 ml-1 tracking-wider">Cari Kodu</label>
+                <input name="code" type="text" className="input-field text-sm py-1.5" defaultValue={editingCari?.code} required />
               </div>
               <div>
-                <label className="block text-xs font-medium text-slate-700 mb-1">Faks</label>
-                <input name="fax" type="text" className="input-field text-sm py-1.5" defaultValue={editingCari?.fax} />
+                <label className="block text-xs font-semibold text-slate-500 uppercase mb-0.5 ml-1 tracking-wider">Ticari Unvanı</label>
+                <input name="name" type="text" className="input-field text-sm py-1.5" defaultValue={editingCari?.name} required />
               </div>
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-slate-700 mb-1">{'Cari Tipi'}</label>
-              <select name="type" className="input-field text-sm py-1.5" defaultValue={fixTR(editingCari?.type) || 'Al\u0131c\u0131'}>
-                <option>{'Al\u0131c\u0131'}</option>
-                <option>{'Sat\u0131c\u0131'}</option>
-                <option>{'Her \u0130kisi'}</option>
-              </select>
-            </div>
-            <button type="submit" className="btn-primary w-full py-2 text-sm flex items-center justify-center gap-2">
-              {isEdit ? (
-                <>
-                  <Settings size={16} />
-                  {'G\u00fcncelle'}
-                </>
-              ) : (
-                <>
-                  <Plus size={16} />
-                  Kaydet
-                </>
-              )}
-            </button>
-          </form>
+              <div>
+                <label className="block text-xs font-semibold text-slate-500 uppercase mb-0.5 ml-1 tracking-wider">Yetkilisi</label>
+                <input name="authorized_person" type="text" className="input-field text-sm py-1.5" defaultValue={editingCari?.authorized_person} />
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-500 uppercase mb-0.5 ml-1 tracking-wider">Vergi Dairesi</label>
+                  <input name="tax_office" type="text" className="input-field text-sm py-1.5" defaultValue={editingCari?.tax_office} />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-500 uppercase mb-0.5 ml-1 tracking-wider">Vergi No</label>
+                  <input name="tax_number" type="text" className="input-field text-sm py-1.5" defaultValue={editingCari?.tax_number} />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-500 uppercase mb-0.5 ml-1 tracking-wider">Telefon</label>
+                  <input name="phone" type="text" className="input-field text-sm py-1.5" defaultValue={editingCari?.phone} />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-500 uppercase mb-0.5 ml-1 tracking-wider">Faks</label>
+                  <input name="fax" type="text" className="input-field text-sm py-1.5" defaultValue={editingCari?.fax} />
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-500 uppercase mb-0.5 ml-1 tracking-wider">Cari Tipi</label>
+                <select name="type" className="input-field !text-[13px] !py-0 leading-tight bg-white h-[35px] appearance-none px-3" defaultValue={fixTR(editingCari?.type) || 'Alıcı'}>
+                  <option>Alıcı</option>
+                  <option>Satıcı</option>
+                  <option>Her İkisi</option>
+                </select>
+              </div>
+              <button type="submit" className="btn-primary w-full py-2.5 text-sm flex items-center justify-center gap-2 mt-1 shadow-md">
+                {isEdit ? (
+                  <>
+                    <Settings size={18} />
+                    Güncelle
+                  </>
+                ) : (
+                  <>
+                    <Plus size={18} />
+                    Kaydet
+                  </>
+                )}
+              </button>
+            </form>
+          </div>
         </div>
       );
     }
@@ -1568,268 +1608,249 @@ export default function App() {
         }, 0) + 1
       ).padStart(6, '0');
 
-      // Cari bakiyesini doğrudan cari objesinden al - GÜVENLİ UTILITY
       const cariBakiye = formatBalance(selectedCariData?.balance);
       const bakiyeAbs = Math.abs(cariBakiye);
       const bakiyeDurum = cariBakiye > 0 ? 'Alacak' : cariBakiye < 0 ? 'Borç' : 'Denk';
 
       return (
-        <div className="max-w-2xl mx-auto">
-          <BackButton onClick={() => setSubView('menu')} />
-          <div className="flex items-center gap-3 mb-2">
-            <div className="p-1.5 bg-purple-500 rounded-xl text-white shadow-sm"><Edit size={18} /></div>
-            <h2 className="text-xl font-bold text-slate-900">
-              {editingTransaction ? 'Cari Hareket D\u00fczenle' : 'Cari Hareket Giri\u015fi'}
-            </h2>
+        <div className="max-w-2xl mx-auto h-full flex flex-col overflow-hidden">
+          <div className="flex items-center justify-center gap-3 shrink-0 pt-2 pb-2 px-4 relative">
+            <div className="absolute left-4">
+              <BackButton onClick={() => setSubView('menu')} />
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="p-1 bg-indigo-500 rounded-lg text-white shadow-sm">
+                <Edit size={18} />
+              </div>
+              <h2 className="text-lg font-extrabold text-slate-800 uppercase tracking-tight">{editingTransaction ? 'Hareketi Düzenle' : 'Hareket Girişi'}</h2>
+            </div>
           </div>
 
-          <form onSubmit={async (e) => {
-            e.preventDefault();
-            try {
-              const formData = new FormData(e.currentTarget);
-              const data = Object.fromEntries(formData);
+          <div className="flex-1 overflow-y-auto px-1 pb-20 sm:pb-4 custom-scrollbar">
+            <form onSubmit={async (e) => {
+              e.preventDefault();
+              try {
+                const formData = new FormData(e.currentTarget);
+                const data = Object.fromEntries(formData);
 
-              const borcVal = parseNumber(data.borc_amount as string);
-              const alacakVal = parseNumber(data.alacak_amount as string);
+                const borcVal = parseNumber(data.borc_amount as string);
+                const alacakVal = parseNumber(data.alacak_amount as string);
 
-              if (borcVal === 0 && alacakVal === 0) {
-                alert('Borç veya alacak tutarı giriniz');
-                return;
+                if (borcVal === 0 && alacakVal === 0) {
+                  alert('Borç veya alacak tutarı giriniz');
+                  return;
+                }
+                if (borcVal > 0 && alacakVal > 0) {
+                  alert('Aynı anda hem borç hem alacak giremezsiniz');
+                  return;
+                }
+
+                const transactionData = {
+                  cari_id: data.cari_id,
+                  type: borcVal > 0 ? 'Borç' : 'Alacak',
+                  amount: Number(borcVal > 0 ? borcVal : alacakVal),
+                  date: data.date ? formatDateToDDMMYYYY(new Date(data.date as string)) : formatDateToDDMMYYYY(),
+                  time: String(data.time || new Date().toTimeString().slice(0, 5)),
+                  description: String(data.description || ''),
+                  evrak_no: '',
+                  makbuz_no: String(data.makbuz_no || nextMakbuzNo),
+                  islem_turu: String(data.islem_turu || 'Nakit')
+                };
+
+                if (editingTransaction) {
+                  await API.updateTransaction(editingTransaction.id, transactionData);
+                  alert('Hareket güncellendi');
+                } else {
+                  await API.createTransaction(transactionData);
+                  alert('Hareket kaydedildi');
+                }
+
+                await fetchData();
+                setSubView('menu');
+                setEditingTransaction(null);
+              } catch (error) {
+                console.error('Transaction error:', error);
+                alert('Hata: ' + (error instanceof Error ? error.message : 'Bilinmeyen hata'));
               }
-              if (borcVal > 0 && alacakVal > 0) {
-                alert('Ayn\u0131 anda hem bor\u00e7 hem alacak giremezsiniz');
-                return;
-              }
+            }} className="space-y-2">
 
-              const transactionData = {
-                cari_id: data.cari_id,
-                type: borcVal > 0 ? 'Borç' : 'Alacak',
-                amount: Number(borcVal > 0 ? borcVal : alacakVal),
-                date: data.date ? formatDateToDDMMYYYY(new Date(data.date as string)) : formatDateToDDMMYYYY(),
-                time: String(data.time || new Date().toTimeString().slice(0, 5)),
-                description: String(data.description || ''),
-                evrak_no: '',
-                makbuz_no: String(data.makbuz_no || nextMakbuzNo),
-                islem_turu: String(data.islem_turu || 'Nakit')
-              };
+              {/* Cari Seçimi */}
+              <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                <div className="bg-slate-700 px-3 py-0.5">
+                  <span className="text-[9px] font-bold text-white tracking-wide uppercase">Cari Seçiniz</span>
+                </div>
+                <div className="p-2">
+                  <select
+                    key={`cari-select-${subView}`}
+                    name="cari_id"
+                    className="w-full px-3 py-1.5 text-sm border border-slate-200 rounded-xl bg-slate-50 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none transition-all mb-1"
+                    required
+                    value={selectedCariForMovement ? String(selectedCariForMovement) : ""}
+                    onChange={(e) => setSelectedCariForMovement(e.target.value || null)}
+                  >
+                    <option value="">Cari Seçiniz...</option>
+                    {caris.map(c => (
+                      <option key={c.id} value={c.id}>{c.code} {c.name}</option>
+                    ))}
+                  </select>
 
-              if (editingTransaction) {
-                await API.updateTransaction(editingTransaction.id, transactionData);
-                alert('Hareket gï¿½ncellendi');
-              } else {
-                await API.createTransaction(transactionData);
-                alert('Hareket kaydedildi');
-              }
-
-              await fetchData();
-              setSubView('menu');
-              setEditingTransaction(null);
-            } catch (error) {
-              console.error('Transaction error:', error);
-              alert('Hata: ' + (error instanceof Error ? error.message : 'Bilinmeyen hata'));
-            }
-          }} className="space-y-2">
-
-            {/* Cari Seï¿½imi */}
-            <div className="bg-blue-50/50 rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-              <div className="bg-slate-700 px-3 py-1">
-                <span className="text-[10px] font-bold text-white tracking-wide uppercase">Cari Seçiniz</span>
-              </div>
-              <div className="p-2">
-                <select
-                  key={`cari-select-${subView}-${Date.now()}`}
-                  name="cari_id"
-                  className="w-full px-3 py-1.5 text-sm border border-slate-300 rounded-lg bg-blue-50/50 mb-1"
-                  required
-                  defaultValue={editingTransaction ? String(editingTransaction.cari_id) : ""}
-                  onChange={(e) => setSelectedCariForMovement(e.target.value || null)}
-                >
-                  <option value="">Cari Seçiniz...</option>
-                  {caris.map(c => (
-                    <option key={c.id} value={c.id}>{c.code} {c.name}</option>
-                  ))}
-                </select>
-
-                {selectedCariData && (
-                  <div className="grid grid-cols-2 gap-x-4 gap-y-0.5 text-[11px] mt-1 border-t border-slate-50 pt-1">
-                    <div className="flex gap-2"><span className="text-slate-400 min-w-[60px]">Cari Kodu:</span><span className="font-bold">{selectedCariData.code}</span></div>
-                    <div className="flex gap-2"><span className="text-slate-400 min-w-[60px]">Cari Tipi:</span><span className="font-bold">{fixTR(selectedCariData.type)}</span></div>
-                    <div className="col-span-2 flex gap-2"><span className="text-slate-400 min-w-[60px]">Unvan/Ad:</span><span className="font-bold text-indigo-700">{selectedCariData.name}</span></div>
-                    {/* Bakiye Kutusu Minimal */}
-                    <div className="col-span-2 mt-1 p-1 rounded-lg border flex items-center justify-between" style={{ borderColor: bakiyeDurum === 'Borç' ? '#ef4444' : bakiyeDurum === 'Alacak' ? '#10b981' : '#94a3b8', backgroundColor: bakiyeDurum === 'Borç' ? '#fef2f2' : bakiyeDurum === 'Alacak' ? '#ecfdf5' : '#f8fafc' }}>
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-[9px] font-bold text-slate-500 uppercase">Bakiye</span>
-                        <button 
-                          type="button"
-                          onClick={async (e) => {
-                            e.preventDefault();
-                            if (!selectedCariForMovement || isRecalculating) return;
-                            setIsRecalculating(true);
-                            try {
-                              await API.recalculateCariBalance(String(selectedCariForMovement));
-                              await fetchData();
-                            } catch (err) {
-                              alert('Hata: ' + err);
-                            } finally {
-                              setIsRecalculating(false);
-                            }
-                          }}
-                          className={`p-1 rounded-md transition-all ${isRecalculating ? 'animate-spin text-indigo-400' : 'text-indigo-600 hover:bg-white hover:shadow-sm'}`}
-                          title="Bakiyeyi Hareketlerden Yeniden Hesapla"
-                        >
-                          <RefreshCw size={12} />
-                        </button>
+                  {selectedCariData && (
+                    <div className="grid grid-cols-2 gap-x-4 gap-y-0.5 text-xs mt-1 border-t border-slate-50 pt-1.5">
+                      <div className="flex gap-2"><span className="text-slate-400 min-w-[60px]">Kodu:</span><span className="font-bold">{selectedCariData.code}</span></div>
+                      <div className="flex gap-2"><span className="text-slate-400 min-w-[60px]">Tipi:</span><span className="font-bold">{fixTR(selectedCariData.type)}</span></div>
+                      <div className="col-span-2 flex gap-2"><span className="text-slate-400 min-w-[60px]">Unvan/Ad:</span><span className="font-bold text-indigo-700 truncate">{selectedCariData.name}</span></div>
+                      <div className="col-span-2 mt-1 px-2 py-1.5 rounded-xl border flex items-center justify-between" style={{ borderColor: bakiyeDurum === 'Borç' ? '#fca5a5' : bakiyeDurum === 'Alacak' ? '#6ee7b7' : '#e2e8f0', backgroundColor: bakiyeDurum === 'Borç' ? '#fef2f2' : bakiyeDurum === 'Alacak' ? '#ecfdf5' : '#f8fafc' }}>
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-[9px] font-bold text-slate-500 uppercase tracking-tighter">Bakiye</span>
+                          <button 
+                            type="button"
+                            onClick={async (e) => {
+                              e.preventDefault();
+                              if (!selectedCariForMovement || isRecalculating) return;
+                              setIsRecalculating(true);
+                              try {
+                                await API.recalculateCariBalance(String(selectedCariForMovement));
+                                await fetchData();
+                              } catch (err) {
+                                alert('Hata: ' + err);
+                              } finally {
+                                setIsRecalculating(false);
+                              }
+                            }}
+                            className={`p-1 rounded-lg transition-all ${isRecalculating ? 'animate-spin text-indigo-400' : 'text-indigo-600 hover:bg-white hover:shadow-sm'}`}
+                          >
+                            <RefreshCw size={12} />
+                          </button>
+                        </div>
+                        <span className={`text-sm font-black ${bakiyeDurum === 'Borç' ? 'text-red-600' : bakiyeDurum === 'Alacak' ? 'text-emerald-600' : 'text-slate-500'}`}>
+                          ₺{bakiyeAbs.toLocaleString('tr-TR', { minimumFractionDigits: 2 })} <span className="text-[9px] uppercase">{bakiyeDurum}</span>
+                        </span>
                       </div>
-                      <span className={`text-sm font-black ${bakiyeDurum === 'Borç' ? 'text-red-600' : bakiyeDurum === 'Alacak' ? 'text-emerald-600' : 'text-slate-500'}`}>
-                        ₺{bakiyeAbs.toLocaleString('tr-TR', { minimumFractionDigits: 2 })} <span className="text-[8px] uppercase">{bakiyeDurum === 'Borç' ? 'Borç' : bakiyeDurum === 'Alacak' ? 'Alacak' : 'Denk'}</span>
-                      </span>
                     </div>
-                  </div>
-                )}
+                  )}
+                </div>
               </div>
-            </div>
 
-            {/* Hareket Bilgileri */}
-            <div className="bg-blue-50/50 rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-              <div className="bg-slate-700 px-3 py-1">
-                <span className="text-[10px] font-bold text-white tracking-wide uppercase">Hareket Bilgileri</span>
-              </div>
-              <div className="p-2 space-y-1.5">
-                <div className="grid grid-cols-3 gap-1">
-                  <div className="min-w-0">
-                    <label className="block text-[10px] font-semibold text-slate-500 uppercase mb-0.5 text-center">{'\u0130\u015flem Tarihi'}</label>
-                    <div className="relative min-w-0">
-                      <div className="input-field w-full min-w-0 text-[12px] py-1 px-0 text-center bg-white border border-slate-200 rounded-lg flex items-center justify-center h-[32px]">
-                        {movementDate ? movementDate.split('-').reverse().join('.') : ''}
-                      </div>
-                      <input 
-                        name="date" 
-                        type="date" 
-                        className="absolute inset-0 opacity-0 w-full h-full cursor-pointer" 
-                        value={movementDate}
-                        onChange={(e) => setMovementDate(e.target.value)}
-                        required 
-                      />
-                    </div>
+              {/* İşlem Detayları */}
+              <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                <div className="bg-slate-700 px-3 py-0.5">
+                  <span className="text-[9px] font-bold text-white tracking-wide uppercase">İşlem Detayları</span>
+                </div>
+                <div className="p-2 grid grid-cols-3 gap-2">
+                  <div className="col-span-1">
+                    <label className="block text-[9px] font-bold text-slate-500 uppercase mb-0.5 ml-1 tracking-tight">Tarih</label>
+                    <input name="date" type="date" className="input-field !text-[13px] !py-0 w-full h-[32px] leading-tight" value={movementDate} onChange={(e) => setMovementDate(e.target.value)} required />
                   </div>
-                  <div className="min-w-0">
-                    <label className="block text-[10px] font-semibold text-slate-500 uppercase mb-0.5 text-center">Saat</label>
-                    <div className="relative min-w-0">
-                      <div className="input-field w-full min-w-0 text-[12px] py-1 px-0 text-center bg-white border border-slate-200 rounded-lg flex items-center justify-center h-[32px]">
-                        {movementTime}
-                      </div>
-                      <input 
-                        name="time" 
-                        type="time" 
-                        className="absolute inset-0 opacity-0 w-full h-full cursor-pointer" 
-                        value={movementTime}
-                        onChange={(e) => setMovementTime(e.target.value)}
-                        required 
-                      />
-                    </div>
+                  <div className="col-span-1">
+                    <label className="block text-[9px] font-bold text-slate-500 uppercase mb-0.5 ml-1 tracking-tight">Saat</label>
+                    <input name="time" type="time" className="input-field !text-[13px] !py-0 w-full h-[32px] leading-tight" value={movementTime} onChange={(e) => setMovementTime(e.target.value)} required />
                   </div>
-                  <div>
-                    <label className="block text-[10px] font-semibold text-slate-500 uppercase mb-0.5 text-center">{'\u0130\u015flem T\u00fcr\u00fc'}</label>
-                    <select name="islem_turu" className="input-field w-full min-w-0 text-[12px] py-1 px-1 text-center h-[32px] border border-slate-200 rounded-lg bg-white" defaultValue={editingTransaction?.islem_turu || "Nakit"}>
-                      <option>Nakit</option><option>Havale</option><option>{'\u00c7ek'}</option><option>Senet</option><option>{'Kredi Kart\u0131'}</option>
+                  <div className="col-span-1">
+                    <label className="block text-[9px] font-bold text-slate-500 uppercase mb-0.5 ml-1 tracking-tight">Tür</label>
+                    <select name="islem_turu" className="input-field !text-[13px] !py-0 px-2 bg-white w-full h-[32px] leading-tight appearance-none" defaultValue={editingTransaction?.islem_turu || "Nakit"}>
+                      <option>Nakit</option>
+                      <option>Havale</option>
+                      <option>Çek</option>
+                      <option>Senet</option>
+                      <option>Kredi Kartı</option>
                     </select>
                   </div>
                 </div>
               </div>
-            </div>
 
-            {/* İşlem Tutar1 */}
-            <div className="bg-blue-50/50 rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-              <div className="bg-slate-700 px-3 py-1">
-                <span className="text-[10px] font-bold text-white tracking-wide uppercase">{'\u0130\u015flem Tutar\u0131'}</span>
-              </div>
-              <div className="p-2">
+              {/* Tutar Girişi */}
+              <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden p-2">
                 <div className="grid grid-cols-2 gap-2">
-                  <div>
-                    <label className="block text-[10px] font-semibold text-red-500 uppercase mb-0.5 ml-1">
-                      ÖDEME (GİDER)
-                    </label>
+                  <div className="space-y-0.5">
+                    <label className="block text-[9px] font-bold text-red-500 uppercase tracking-tight ml-1">ÖDEME / GİDER</label>
                     <div className="relative">
                       <input 
-                        key={`borc-input-${selectedCariForMovement || 'none'}`}
                         name="borc_amount" 
                         type="text" 
                         inputMode="decimal"
-                        className="input-field text-sm py-1 font-bold text-red-600 bg-red-50/30 border-red-100" 
+                        className="input-field text-sm py-1.5 font-bold text-red-600 bg-red-50/30 border-red-100" 
                         placeholder="0,00" 
-                        defaultValue={normalizeCariTransactionType(editingTransaction?.type) === 'Borç' ? formatForInput(Math.abs(editingTransaction.amount)) : (!editingTransaction && bakiyeDurum === 'Borç' ? formatForInput(bakiyeAbs) : "")} 
+                        defaultValue={normalizeCariTransactionType(editingTransaction?.type) === 'Borç' ? formatForInput(Math.abs(editingTransaction.amount)) : ""} 
                       />
-                      <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] font-bold text-red-400">TL</span>
+                      <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] font-bold text-red-300">TL</span>
                     </div>
                   </div>
-                  <div>
-                    <label className="block text-[10px] font-semibold text-emerald-600 uppercase mb-0.5 ml-1">
-                      TAHSİLAT (GELİR)
-                    </label>
+                  <div className="space-y-0.5">
+                    <label className="block text-[9px] font-bold text-emerald-600 uppercase tracking-tight ml-1">TAHSİLAT / GELİR</label>
                     <div className="relative">
                       <input 
-                        key={`alacak-input-${selectedCariForMovement || 'none'}`}
                         name="alacak_amount" 
                         type="text" 
                         inputMode="decimal"
-                        className="input-field text-sm py-1 font-bold text-emerald-600 bg-emerald-50/30 border-emerald-100" 
+                        className="input-field text-sm py-1.5 font-bold text-emerald-600 bg-emerald-50/30 border-emerald-100" 
                         placeholder="0,00" 
-                        defaultValue={normalizeCariTransactionType(editingTransaction?.type) === 'Alacak' ? formatForInput(Math.abs(editingTransaction.amount)) : (!editingTransaction && bakiyeDurum === 'Alacak' ? formatForInput(bakiyeAbs) : "")} 
+                        defaultValue={normalizeCariTransactionType(editingTransaction?.type) === 'Alacak' ? formatForInput(Math.abs(editingTransaction.amount)) : ""} 
                       />
-                      <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] font-bold text-emerald-400">TL</span>
+                      <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] font-bold text-emerald-300">TL</span>
                     </div>
                   </div>
                 </div>
               </div>
-            </div>
 
-            {/* Aï¿½1klama */}
-            <div className="bg-blue-50/50 rounded-xl border border-slate-200 shadow-sm overflow-hidden p-2 space-y-1.5">
-              <div>
-                <label className="block text-[10px] font-semibold text-slate-500 uppercase mb-0.5 ml-1">{'A\u00e7\u0131klama'}</label>
-                <input name="description" type="text" className="input-field text-xs py-1" placeholder={'\u0130\u015flem a\u00e7\u0131klamas\u0131'} defaultValue={editingTransaction?.description || ""} />
+              {/* Açıklama */}
+              <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-2 grid grid-cols-2 gap-2">
+                <div className="col-span-2">
+                  <label className="block text-[9px] font-bold text-slate-500 uppercase mb-0.5 ml-1 tracking-tight">Açıklama</label>
+                  <input name="description" type="text" className="input-field text-sm py-1.5" placeholder="İşlem açıklaması giriniz..." defaultValue={editingTransaction?.description || ""} />
+                </div>
+                <div className="col-span-2">
+                  <label className="block text-[9px] font-bold text-slate-500 uppercase mb-0.5 ml-1 tracking-tight">Makbuz No</label>
+                  <input name="makbuz_no" type="text" className="input-field text-sm py-1.5" placeholder="Makbuz no..." defaultValue={editingTransaction?.makbuz_no || nextMakbuzNo} />
+                </div>
               </div>
-              <div>
-                <label className="block text-[10px] font-semibold text-slate-500 uppercase mb-0.5 ml-1">Makbuz No</label>
-                <input name="makbuz_no" type="text" className="input-field text-xs py-1" placeholder={'Makbuz numaras\u0131'} defaultValue={editingTransaction?.makbuz_no || nextMakbuzNo} />
-              </div>
-            </div>
 
-            <div className="flex gap-2 pt-1">
-              <button type="submit" className="btn-primary flex-1 py-2 text-sm font-bold rounded-xl shadow-md">
-                <Check size={16} className="inline mr-1" />
-                {editingTransaction ? 'G\u00fcncelle' : 'Kaydet'}
-              </button>
-
-              {editingTransaction && (
-                <button
-                  type="button"
-                  onClick={async () => {
-                    if (confirm('Silinecek. Emin misiniz?')) {
-                      await API.deleteTransaction(editingTransaction.id);
-                      await fetchData();
-                      setSubView('menu');
-                      setEditingTransaction(null);
-                    }
-                  }}
-                  className="px-3 bg-red-500 text-white rounded-xl shadow-md"
-                >
-                  <Trash2 size={16} />
+              <div className="flex gap-3 mt-2">
+                <button type="submit" className="btn-primary flex-1 py-3 text-sm font-bold rounded-2xl shadow-lg border-b-4 border-indigo-800">
+                  <Check size={20} className="inline mr-2" />
+                  {editingTransaction ? 'Güncelle' : 'Kaydet'}
                 </button>
-              )}
-            </div>
-          </form>
+
+                {editingTransaction && (
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      if (confirm('İşlem silinecek. Emin misiniz?')) {
+                        await API.deleteTransaction(editingTransaction.id);
+                        await fetchData();
+                        setSubView('menu');
+                        setEditingTransaction(null);
+                      }
+                    }}
+                    className="aspect-square flex items-center justify-center bg-red-500 text-white rounded-2xl shadow-lg border-b-4 border-red-800 hover:bg-red-600 transition-colors px-4"
+                  >
+                    <Trash2 size={24} />
+                  </button>
+                )}
+              </div>
+            </form>
+          </div>
         </div>
       );
     }
 
     if (subView === 'list') {
       return (
-        <div className="space-y-4">
-          <BackButton onClick={() => setSubView('menu')} />
-          <h2 className="text-2xl font-bold">Cari Hesap Listesi</h2>
+        <div className="flex flex-col h-full bg-blue-50/50 overflow-hidden">
+          <div className="w-full max-w-2xl mx-auto px-4 py-4 flex flex-col gap-4 relative">
+            <div className="flex items-center justify-center gap-3 mb-2 relative">
+              <div className="absolute left-4">
+                <BackButton onClick={() => setSubView('menu')} />
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="p-1.5 bg-indigo-600 rounded-lg text-white shadow-sm">
+                  <Users size={18} />
+                </div>
+                <h2 className="text-base font-extrabold text-slate-800 uppercase tracking-tight">Cari Hesap Listesi</h2>
+              </div>
+            </div>
+            <div className="flex-1 overflow-y-auto custom-scrollbar pt-2 space-y-4">
 
-          <div className="grid gap-3">
+          <div className="grid gap-2">
             {caris.map(cari => {
               const balance = formatBalance(cari.balance);
               const isPositive = balance > 0;
@@ -1839,33 +1860,35 @@ export default function App() {
               return (
                 <motion.div
                   key={cari.id}
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.98 }}
+                  whileHover={{ scale: 1.01 }}
+                  whileTap={{ scale: 0.99 }}
                   onClick={() => {
                     setSelectedCariForMovement(cari.id);
                     setSubView('movements');
                   }}
-                  className="card p-4 cursor-pointer hover:shadow-lg transition-all"
+                  className="card p-2.5 cursor-pointer hover:shadow-md transition-all border-slate-100/50"
                 >
                   <div className="flex items-center justify-between">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-3 mb-2">
-                        <div className="p-2 bg-indigo-500 rounded-lg text-white">
-                          <Users size={20} />
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2.5 mb-1">
+                        <div className="p-1.5 bg-indigo-500 rounded-lg text-white shrink-0">
+                          <Users size={16} />
                         </div>
-                        <div>
-                          <h3 className="font-bold text-lg text-slate-900">{cari.name}</h3>
-                          <p className="text-sm text-slate-500">{cari.code}</p>
+                        <div className="min-w-0 flex-1">
+                          <h3 className="font-black text-[15px] text-slate-900 truncate leading-tight uppercase tracking-tight">
+                            <span className="text-indigo-600/50 mr-1.5 font-bold">{cari.code}</span>
+                            {cari.name}
+                          </h3>
                         </div>
                       </div>
-                      <div className="flex items-center gap-4 text-sm">
-                        <span className="text-slate-600">{fixTR(cari.type)}</span>
-                        <span className={`font-bold ${isNegative ? 'text-red-600' : isPositive ? 'text-emerald-600' : 'text-slate-600'}`}>
+                      <div className="flex items-center gap-3 text-[11px]">
+                        <span className="text-slate-500 font-medium px-1.5 py-0.5 bg-slate-100 rounded text-[9px] uppercase">{fixTR(cari.type)}</span>
+                        <span className={`font-black uppercase ${isNegative ? 'text-red-600' : isPositive ? 'text-emerald-600' : 'text-slate-500'}`}>
                           ₺{absBalance.toLocaleString('tr-TR', { minimumFractionDigits: 2 })} {isNegative ? 'Borç' : isPositive ? 'Alacak' : 'Denk'}
                         </span>
                       </div>
                     </div>
-                    <ChevronRight className="text-slate-400" size={24} />
+                    <ChevronRight className="text-slate-300 ml-2 shrink-0" size={18} />
                   </div>
                 </motion.div>
               );
@@ -1880,14 +1903,25 @@ export default function App() {
             </div>
           )}
         </div>
-      );
-    }
+      </div>
+    </div>
+  );
+}
 
     if (subView === 'movements') {
       return (
-        <div className="space-y-4">
-          <BackButton onClick={() => setSubView('menu')} />
-          <h2 className="text-2xl font-bold">Cari Hareket Raporu</h2>
+        <div className="max-w-4xl mx-auto h-full flex flex-col overflow-hidden px-0">
+          <div className="flex items-center justify-center gap-3 shrink-0 pt-4 pb-4 px-4 border-b border-slate-100 bg-white/50 backdrop-blur-md relative">
+            <div className="absolute left-4">
+              <BackButton onClick={() => setSubView('menu')} />
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="p-1 bg-indigo-500 rounded-lg text-white shadow-sm">
+                <History size={18} />
+              </div>
+              <h2 className="text-lg font-extrabold text-slate-800 uppercase tracking-tight">Cari Hareket Raporu</h2>
+            </div>
+          </div>
 
           {/* Cari Filtresi */}
           <div className="card p-4">
@@ -1919,16 +1953,16 @@ export default function App() {
           </div>
           <div className="border-b-2 border-slate-300 my-2 mx-1"></div>
 
-          <div className="bg-blue-50/50 rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
-            <div className="overflow-x-auto">
+          <div className="bg-blue-50/50 rounded-2xl shadow-sm border border-slate-200 flex-1 overflow-y-auto custom-scrollbar mb-4">
+            <div className="w-full overflow-x-hidden">
               <table className="w-full text-left text-xs border-collapse min-w-[320px]">
                 <thead>
                   <tr className="bg-blue-50/30 border-b border-slate-200">
-                    <th className="px-3 py-3 font-bold text-center text-slate-500 uppercase tracking-wider" style={{ fontSize: '10px' }}>Tarih</th>
-                    <th className="px-3 py-3 font-bold text-center text-slate-500 uppercase tracking-wider" style={{ fontSize: '10px' }}>{'\u0130\u015flem'}</th>
-                    <th className="px-3 py-3 font-bold text-right text-slate-500 uppercase tracking-wider" style={{ fontSize: '10px' }}>{'Bor\u00e7'}</th>
-                    <th className="px-3 py-3 font-bold text-right text-slate-500 uppercase tracking-wider" style={{ fontSize: '10px' }}>Alacak</th>
-                    <th className="px-3 py-3 font-bold text-right text-slate-500 uppercase tracking-wider" style={{ fontSize: '10px' }}>Bakiye</th>
+                    <th className="px-1 py-2 font-bold text-center text-slate-500 uppercase tracking-wider" style={{ fontSize: '9px' }}>Tarih</th>
+                    <th className="px-1 py-2 font-bold text-center text-slate-500 uppercase tracking-wider" style={{ fontSize: '9px' }}>{'\u0130\u015flem'}</th>
+                    <th className="px-1 py-2 font-bold text-right text-slate-500 uppercase tracking-wider" style={{ fontSize: '9px' }}>{'Bor\u00e7'}</th>
+                    <th className="px-1 py-2 font-bold text-right text-slate-500 uppercase tracking-wider" style={{ fontSize: '9px' }}>Alacak</th>
+                    <th className="px-1 py-2 font-bold text-right text-slate-500 uppercase tracking-wider" style={{ fontSize: '9px' }}>Bakiye</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -2051,36 +2085,26 @@ export default function App() {
                                 }
                               }}
                             >
-                              <td className="px-3 py-3 text-center font-medium text-slate-600" style={{ fontSize: '11px' }}>
+                              <td className="px-1 py-2 text-center font-medium text-slate-600" style={{ fontSize: '10px' }}>
                                 <div className="flex flex-col items-center gap-0.5">
                                   <span>{displayDate(item.date)}</span>
-                                  {!selectedCariForMovement && item.cari_name && (
-                                    <span className="text-[9px] leading-tight font-semibold text-slate-500 text-center break-words max-w-[82px]">
-                                      {item.cari_name}
-                                    </span>
-                                  )}
                                 </div>
                               </td>
-                              <td className="px-3 py-3 text-center">
+                              <td className="px-1 py-2 text-center">
                                 <div className="flex flex-col items-center gap-1">
-                                  <span className={`px-2 py-1 rounded-lg text-[10px] font-black uppercase tracking-tighter ${item.isFatura ? 'bg-blue-100 text-blue-700' : 'bg-red-100 text-red-700'}`}>
+                                  <span className={`px-1.5 py-0.5 rounded-lg text-[9px] font-black uppercase tracking-tighter ${item.alacakTutar > 0 ? 'bg-emerald-100 text-emerald-700' : item.borcTutar > 0 ? 'bg-red-100 text-red-700' : 'bg-slate-100 text-slate-700'}`}>
                                     {fixTR(item.rowType || item.type)}
                                   </span>
-                                  {!selectedCariForMovement && item.cari_name && (
-                                    <div className="max-w-[92px] text-[9px] leading-tight font-semibold text-slate-500 text-center break-words">
-                                      {item.cari_name}
-                                    </div>
-                                  )}
                                 </div>
                               </td>
-                              <td className="px-3 py-3 text-right font-bold text-red-600" style={{ fontSize: '11px' }}>
-                                {item.borcTutar > 0 ? item.borcTutar.toLocaleString('tr-TR', { minimumFractionDigits: 2 }) : '-'}
+                              <td className="px-1 py-2 text-right font-bold text-red-600" style={{ fontSize: '10px' }}>
+                                {item.borcTutar > 0 ? item.borcTutar.toLocaleString('tr-TR', { minimumFractionDigits: 3, maximumFractionDigits: 3 }) : '-'}
                               </td>
-                              <td className="px-3 py-3 text-right font-bold text-emerald-600" style={{ fontSize: '11px' }}>
-                                {item.alacakTutar > 0 ? item.alacakTutar.toLocaleString('tr-TR', { minimumFractionDigits: 2 }) : '-'}
+                              <td className="px-1 py-2 text-right font-bold text-emerald-600" style={{ fontSize: '10px' }}>
+                                {item.alacakTutar > 0 ? item.alacakTutar.toLocaleString('tr-TR', { minimumFractionDigits: 3, maximumFractionDigits: 3 }) : '-'}
                               </td>
-                              <td className="px-3 py-3 text-right font-bold text-slate-900" style={{ fontSize: '11px' }}>
-                                {item.runningBalance !== 0 ? Math.abs(item.runningBalance).toLocaleString('tr-TR', { minimumFractionDigits: 2 }) : '0.00'}
+                              <td className="px-1 py-2 text-right font-bold text-slate-900" style={{ fontSize: '10px' }}>
+                                {item.runningBalance !== 0 ? Math.abs(item.runningBalance).toLocaleString('tr-TR', { minimumFractionDigits: 3, maximumFractionDigits: 3 }) : '0.000'}
                               </td>
                             </tr>
                           );
@@ -2092,13 +2116,13 @@ export default function App() {
                             TOPLAMLAR
                           </td>
                           <td className="px-3 py-3 text-right font-black text-red-600" style={{ fontSize: '11px' }}>
-                            {toplamBorc.toLocaleString('tr-TR', { minimumFractionDigits: 2 })}
+                            {toplamBorc.toLocaleString('tr-TR', { minimumFractionDigits: 3, maximumFractionDigits: 3 })}
                           </td>
                           <td className="px-3 py-3 text-right font-black text-emerald-600" style={{ fontSize: '11px' }}>
-                            {toplamAlacak.toLocaleString('tr-TR', { minimumFractionDigits: 2 })}
+                            {toplamAlacak.toLocaleString('tr-TR', { minimumFractionDigits: 3, maximumFractionDigits: 3 })}
                           </td>
                           <td className="px-3 py-3 text-right font-black text-slate-900" style={{ fontSize: '11px' }}>
-                            {Math.abs(bakiye).toLocaleString('tr-TR', { minimumFractionDigits: 2 })}
+                            {Math.abs(bakiye).toLocaleString('tr-TR', { minimumFractionDigits: 3, maximumFractionDigits: 3 })}
                           </td>
                         </tr>
                         {/* Bakiye Sat\u0131r\u0131 */}
@@ -2151,15 +2175,19 @@ export default function App() {
     });
 
     return (
-      <div className="relative min-h-[80vh] bg-blue-50/50 rounded-3xl overflow-hidden shadow-sm border border-slate-100 flex items-start justify-center pt-12">
-        <div className="w-full max-w-md px-4 py-4 flex flex-col gap-3 relative">
-          <button
-            onClick={() => setView('dashboard')}
-            className="absolute -top-10 left-2 p-2 hover:bg-slate-100 rounded-full transition-colors text-slate-500 z-10"
-          >
-            <ArrowDownLeft className="rotate-45" size={20} />
-          </button>
-
+      <div className="flex flex-col h-full bg-blue-50/50 overflow-hidden">
+        <div className="w-full max-w-2xl mx-auto px-4 py-4 flex flex-col gap-4 relative">
+          <div className="flex items-center justify-center gap-3 mb-2 relative">
+            <div className="absolute left-4">
+              <BackButton onClick={() => setView('dashboard')} />
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="p-1.5 bg-indigo-600 rounded-lg text-white shadow-sm">
+                <Users size={18} />
+              </div>
+              <h2 className="text-base font-extrabold text-slate-800 uppercase tracking-tight">Cari Yönetimi</h2>
+            </div>
+          </div>
           <div className="grid gap-3">
             {menuItems.map((item, index) => {
               const colors = menuColors[index % menuColors.length];
@@ -2183,55 +2211,75 @@ export default function App() {
       </div>
     );
   };
-  const renderKasa = () => (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <button
-            onClick={() => setView('dashboard')}
-            className="p-2 hover:bg-blue-50/50 rounded-xl border border-slate-200 hover:border-indigo-200 hover:bg-indigo-50 transition-all group"
-          >
-            <ArrowLeft size={20} className="text-slate-500 group-hover:text-indigo-600" />
-          </button>
-          <h2 className="text-2xl font-bold">Ana Kasa</h2>
+  const renderKasa = () => {
+    const sortedTransactions = [...kasaData.transactions].sort((a: any, b: any) => {
+      const getTimestamp = (dateStr: string) => {
+        if (!dateStr) return 0;
+        const dateOnly = dateStr.split('T')[0].trim();
+        const parts = dateOnly.split(/[-.]/);
+        
+        if (parts.length === 3) {
+          if (parts[0].length === 4) { // YYYY-MM-DD
+            return new Date(`${parts[0]}-${parts[1]}-${parts[2]}`).getTime();
+          } else if (parts[2].length === 4) { // DD-MM-YYYY
+            return new Date(`${parts[2]}-${parts[1]}-${parts[0]}`).getTime();
+          }
+        }
+        return new Date(dateOnly).getTime() || 0;
+      };
+      return getTimestamp(b.date) - getTimestamp(a.date);
+    });
+
+    return (
+      <div className="flex flex-col h-full bg-blue-50/50 overflow-hidden">
+        <div className="flex items-center justify-center gap-3 shrink-0 pt-4 pb-4 px-4 relative">
+          <div className="absolute left-4">
+            <BackButton onClick={() => setView('dashboard')} />
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="p-1.5 bg-indigo-500 rounded-lg text-white shadow-sm">
+              <Wallet2 size={18} />
+            </div>
+            <h2 className="text-lg font-extrabold text-slate-800 uppercase tracking-tight">Kasa Yönetimi</h2>
+          </div>
         </div>
-        <div className="card py-2 px-4 flex items-center gap-4">
-          <span className="text-slate-500 text-sm">Toplam Bakiye:</span>
-          <span className={`text-xl font-bold ${formatCurrencyColor(kasaData.balance)}`}>
-            {formatCurrency(kasaData.balance)}
-          </span>
+        <div className="flex-1 overflow-y-auto px-2 custom-scrollbar space-y-3 pb-20 sm:pb-4">
+          <div className="card py-2 px-4 flex items-center gap-4">
+            <span className="text-slate-500 text-sm">Toplam Bakiye:</span>
+            <span className={`text-xl font-bold ${formatCurrencyColor(kasaData.balance)}`}>
+              {formatCurrency(kasaData.balance)}
+            </span>
+          </div>
+          <div className="card overflow-hidden p-0 border-slate-100 shadow-sm">
+            <table className="w-full text-left">
+              <thead className="bg-blue-50/30 border-b border-slate-200">
+                <tr>
+                  <th className="px-4 py-3 text-xs font-bold text-slate-700 uppercase tracking-wider">Tarih</th>
+                  <th className="px-4 py-3 text-xs font-bold text-slate-700 uppercase tracking-wider">Tip</th>
+                  <th className="px-4 py-3 text-xs font-bold text-slate-700 uppercase tracking-wider text-right">Tutar</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {sortedTransactions.map(t => (
+                  <tr key={t.id} className="hover:bg-blue-50/30 transition-colors border-b border-slate-50/50">
+                    <td className="px-4 py-3 text-xs text-slate-500 font-medium">{displayDate(t.date)}</td>
+                    <td className="px-4 py-3 text-xs">
+                      <span className={`px-2 py-0.5 rounded-lg text-[10px] font-black uppercase ${t.type === 'Giriş' ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}`}>
+                        {t.type}
+                      </span>
+                    </td>
+                    <td className={`px-4 py-3 text-sm font-black text-right ${t.type === 'Giriş' ? 'text-emerald-600' : 'text-red-600'}`}>
+                      {formatCurrency(t.type === 'Giriş' ? t.amount : -t.amount)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
-      <div className="card overflow-hidden p-0">
-        <table className="w-full text-left">
-          <thead className="bg-blue-50/30 border-b border-slate-200">
-            <tr>
-              <th className="px-6 py-4 text-sm font-semibold text-slate-700">Tarih</th>
-              <th className="px-6 py-4 text-sm font-semibold text-slate-700">Açıklama</th>
-              <th className="px-6 py-4 text-sm font-semibold text-slate-700">Tip</th>
-              <th className="px-6 py-4 text-sm font-semibold text-slate-700 text-right">Tutar</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-100">
-            {kasaData.transactions.map(t => (
-              <tr key={t.id} className="hover:bg-blue-50/30 transition-colors">
-                <td className="px-6 py-4 text-sm text-slate-500">{displayDate(t.date)}</td>
-                <td className="px-6 py-4 text-sm font-medium text-slate-900">{t.description}</td>
-                <td className="px-6 py-4 text-sm">
-                  <span className={`px-2 py-1 rounded-full text-xs font-bold ${t.type === 'Giriş' ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}`}>
-                    {t.type}
-                  </span>
-                </td>
-                <td className={`px-6 py-4 text-sm font-bold text-right ${t.type === 'Giriş' ? 'text-emerald-600' : 'text-red-600'}`}>
-                  {formatCurrency(t.type === 'Giriş' ? t.amount : -t.amount)}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  );
+    );
+  };
 
   const renderStok = () => {
     const sortedStocks = [...stocks].sort((a, b) => a.code.localeCompare(b.code));
@@ -2245,23 +2293,19 @@ export default function App() {
     };
 
     return (
-      <div className="relative min-h-[80vh] bg-blue-50/50 rounded-3xl overflow-hidden shadow-sm border border-slate-100 flex items-start justify-center pt-12">
-        {/* Sidebar as Main Menu */}
-        <div className="w-full max-w-md px-4 py-4 flex flex-col gap-4 relative">
-          <button
-            onClick={() => setView('dashboard')}
-            className="absolute -top-10 left-2 p-2 hover:bg-slate-100 rounded-full transition-colors text-slate-500 z-10"
-          >
-            <ArrowDownLeft className="rotate-45" size={20} />
-          </button>
-
-          <div className="mb-4 flex items-center gap-3 text-indigo-600 justify-center">
-            <div className="p-2 bg-indigo-50 rounded-xl shadow-sm">
-              <Package size={24} />
+      <div className="flex flex-col h-full bg-blue-50/50 overflow-hidden px-4 py-2">
+        <div className="w-full max-w-md mx-auto px-4 py-4 flex flex-col gap-4 relative">
+          <div className="flex items-center justify-center gap-3 mb-2 relative">
+            <div className="absolute left-4">
+              <BackButton onClick={() => setView('dashboard')} />
             </div>
-            <h3 className="text-xl font-black uppercase tracking-tight">Stok Yönetimi</h3>
+            <div className="flex items-center gap-2">
+              <div className="p-1.5 bg-indigo-600 rounded-lg text-white shadow-sm">
+                <Package size={18} />
+              </div>
+              <h2 className="text-base font-extrabold text-slate-800 uppercase tracking-tight">Stok Yönetimi</h2>
+            </div>
           </div>
-
           <div className="grid gap-3">
             <button
               onClick={() => { setSubView('add'); setEditingStok(null); }}
@@ -2319,41 +2363,38 @@ export default function App() {
                 exit={{ scale: 0.9, opacity: 0, y: 20 }}
                 className="bg-blue-50/50 rounded-none sm:rounded-3xl shadow-2xl w-full max-w-full sm:max-w-4xl h-full sm:h-auto max-h-full sm:max-h-[90vh] overflow-hidden flex flex-col"
               >
-                <div className="p-3 border-b border-slate-100 flex items-center justify-between bg-blue-50/30/50">
-                  <div className="flex items-center gap-4">
-                    <div className="p-2 bg-blue-50/50 rounded-xl shadow-sm border border-slate-100 shrink-0">
-                      {subView === 'add' && <Plus className="text-emerald-500" />}
-                      {subView === 'edit' && <FileText className="text-indigo-500" />}
-                      {subView === 'list' && <FileText className="text-blue-500" />}
-                      {subView === 'inventory' && <BarChart3 className="text-amber-500" />}
+                <div className="p-2 border-b border-slate-100 flex items-center justify-center bg-blue-50/50 relative">
+                  <div className="absolute left-4">
+                    <BackButton onClick={() => { setSubView('selection'); setEditingStok(null); }} />
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="p-1 bg-indigo-500 rounded-lg text-white shadow-sm">
+                      {subView === 'add' && <Plus size={16} />}
+                      {subView === 'edit' && <FileText size={16} />}
+                      {subView === 'list' && <FileText size={16} />}
+                      {subView === 'inventory' && <BarChart3 size={16} />}
                     </div>
                     <div className="flex flex-col min-w-0">
-                      <h2 className="text-lg font-bold text-slate-900 leading-tight">
-                        {subView === 'add' && 'Yeni Stok Kart1'}
-                        {subView === 'edit' && 'Stok Kart1 Güncelle'}
+                      <h2 className="text-base font-extrabold text-slate-800 uppercase tracking-tight leading-tight">
+                        {subView === 'add' && 'Yeni Stok Kartı'}
+                        {subView === 'edit' && 'Stok Kartı Güncelle'}
                         {subView === 'list' && 'Stok Listesi'}
                         {subView === 'inventory' && 'Stok Envanteri'}
                       </h2>
                       {subView === 'edit' && currentIndex !== -1 && (
-                        <span className="text-xs font-bold text-slate-500 mt-0.5">
+                        <span className="text-[9px] font-bold text-slate-500 mt-0.5 uppercase">
                           {currentIndex + 1} / {sortedStocks.length}
                         </span>
                       )}
                     </div>
                   </div>
-                  <button
-                    onClick={() => { setSubView('selection'); setEditingStok(null); }}
-                    className="p-2 hover:bg-blue-50/50 rounded-xl text-slate-400 hover:text-slate-600 transition-colors shadow-sm border border-transparent hover:border-slate-200"
-                  >
-                    <X size={20} />
-                  </button>
                 </div>
 
-                <div className="flex-1 overflow-y-auto p-2">
+                <div className={`flex-1 overflow-y-auto ${subView === 'list' ? 'p-0' : 'p-2'}`}>
                   {subView === 'add' || (subView === 'edit' && editingStok) ? (
                     <form
                       key={editingStok?.id || 'new'}
-                      className="space-y-4 max-w-full"
+                      className="space-y-2 max-w-full"
                       onSubmit={async (e) => {
                         e.preventDefault();
                         const formData = new FormData(e.currentTarget);
@@ -2393,84 +2434,84 @@ export default function App() {
                         }
                       }}>
                       {/* Kod ve Stok Adı */}
-                      <div className="grid grid-cols-[45px_1fr] gap-3">
-                        <div className="space-y-1">
+                      <div className="grid grid-cols-[60px_1fr] gap-1.5">
+                        <div className="space-y-0.5">
                           <label className="block text-xs font-semibold text-slate-700">Kod</label>
                           <input
                             name="code"
                             type="text"
-                            className="input-field text-left text-sm font-mono bg-blue-50/30 py-2 pl-1"
-                            style={{ paddingLeft: '2px' }}
+                            className="input-field text-left text-sm font-mono bg-blue-50/30 py-1.5 pl-1"
+                            style={{ paddingLeft: '4px' }}
                             defaultValue={editingStok?.code}
                             maxLength={3}
                             required
                           />
                         </div>
-                        <div className="space-y-1">
+                        <div className="space-y-0.5">
                           <label className="block text-xs font-semibold text-slate-700">{'Stok Ad\u0131'}</label>
-                          <input name="name" type="text" className="input-field text-sm py-2" defaultValue={editingStok?.name} required />
+                          <input name="name" type="text" className="input-field text-sm py-1.5" defaultValue={editingStok?.name} required />
                         </div>
                       </div>
 
-                      {/* Temel Birim, Alt Birim, ï¿½!arpan - Tek Sat1r */}
-                      <div className="grid grid-cols-3 gap-3">
-                        <div className="space-y-1">
-                          <label className="block text-xs font-semibold text-slate-700">Temel Birim</label>
-                          <input name="base_unit" type="text" className="input-field text-sm py-2" placeholder="Adet" defaultValue={editingStok?.base_unit} required />
+                      {/* Temel Birim, Alt Birim, Çarpan - Grid */}
+                      <div className="grid grid-cols-3 gap-1.5">
+                        <div className="space-y-0.5">
+                          <label className="block text-[10px] font-semibold text-slate-700 uppercase">Birim</label>
+                          <input name="base_unit" type="text" className="input-field text-xs py-1.5" placeholder="Adet" defaultValue={editingStok?.base_unit} required />
                         </div>
-                        <div className="space-y-1">
-                          <label className="block text-xs font-semibold text-slate-700">Alt Birim</label>
-                          <input name="alt_unit" type="text" className="input-field text-sm py-2" placeholder="Koli" defaultValue={editingStok?.alt_unit || ''} />
+                        <div className="space-y-0.5">
+                          <label className="block text-[10px] font-semibold text-slate-700 uppercase">Alt</label>
+                          <input name="alt_unit" type="text" className="input-field text-xs py-1.5" placeholder="Koli" defaultValue={editingStok?.alt_unit || ''} />
                         </div>
-                        <div className="space-y-1">
-                          <label className="block text-xs font-semibold text-slate-700">{'\u00c7arpan'}</label>
-                          <input name="conversion_factor" type="number" step="0.01" className="input-field text-sm py-2" defaultValue={editingStok?.conversion_factor || "30"} />
+                        <div className="space-y-0.5">
+                          <label className="block text-[10px] font-semibold text-slate-700 uppercase">{'Çarp'}</label>
+                          <input name="conversion_factor" type="number" step="0.01" className="input-field text-xs py-1.5" defaultValue={editingStok?.conversion_factor || "30"} />
                         </div>
                       </div>
 
-                      {/* Alış KDV'siz, Alış KDV'li, Satış - Tek Sat1r */}
-                      <div className="grid grid-cols-3 gap-3">
-                        <div className="space-y-1">
-                          <label className="block text-xs font-semibold text-slate-700">{"Al\u0131\u015f KDV'siz"}</label>
+                      {/* Alış KDV'siz, Alış KDV'li, Satış - Grid */}
+                      <div className="grid grid-cols-3 gap-1.5">
+                        <div className="space-y-0.5">
+                          <label className="block text-[10px] font-semibold text-slate-700 uppercase">{"Alış-KDV"}</label>
                           <input
                             name="purchase_without_tax"
                             type="number"
                             step="0.001"
-                            className="input-field text-sm py-2 font-semibold text-emerald-600"
+                            className="input-field text-[11px] py-1.5 font-semibold text-emerald-600"
                             defaultValue={editingStok ? (editingStok.purchase_price_without_tax || editingStok.purchase_price / (1 + (editingStok.tax_rate || 1) / 100)).toFixed(3) : ''}
                             required
                           />
                         </div>
-                        <div className="space-y-1">
-                          <label className="block text-xs font-semibold text-slate-700">{"Al\u0131\u015f KDV'li"}</label>
+                        <div className="space-y-0.5">
+                          <label className="block text-[10px] font-semibold text-slate-700 uppercase">{"Alış+KDV"}</label>
                           <input
                             name="purchase_price"
                             type="number"
                             step="0.001"
-                            className="input-field text-sm py-2"
-                            defaultValue={editingStok?.purchase_price || ''}
+                            className="input-field text-[11px] py-1.5"
+                            defaultValue={editingStok?.purchase_price ? Number(editingStok.purchase_price).toFixed(3) : ''}
                             required
                           />
                         </div>
-                        <div className="space-y-1">
-                          <label className="block text-xs font-semibold text-slate-700">{'Sat\u0131\u015f'}</label>
-                          <input name="sale_price" type="number" step="0.001" className="input-field text-sm py-2 font-semibold text-indigo-600" defaultValue={editingStok?.sale_price || ''} />
+                        <div className="space-y-0.5">
+                          <label className="block text-[10px] font-semibold text-slate-700 uppercase">{'Satış'}</label>
+                          <input name="sale_price" type="number" step="0.001" className="input-field text-[11px] py-1.5 font-semibold text-indigo-600" defaultValue={editingStok?.sale_price ? Number(editingStok.sale_price).toFixed(3) : ''} />
                         </div>
                       </div>
 
-                      {/* Alış ?sk., Satış ?sk., KDV - Tek Sat1r */}
-                      <div className="grid grid-cols-3 gap-3">
-                        <div className="space-y-1">
-                          <label className="block text-xs font-semibold text-slate-700">Alış İsk.</label>
-                          <input name="purchase_discount" type="number" step="0.1" className="input-field text-sm py-2" defaultValue={editingStok?.purchase_discount || "0"} />
+                      {/* Alış İsk., Satış İsk., KDV - Grid */}
+                      <div className="grid grid-cols-3 gap-1.5">
+                        <div className="space-y-0.5">
+                          <label className="block text-[10px] font-semibold text-slate-700 uppercase">Alış İsk.</label>
+                          <input name="purchase_discount" type="number" step="0.1" className="input-field text-xs py-1.5" defaultValue={editingStok?.purchase_discount || "0"} />
                         </div>
-                        <div className="space-y-1">
-                          <label className="block text-xs font-semibold text-slate-700">Satış İsk.</label>
-                          <input name="sale_discount" type="number" step="0.1" className="input-field text-sm py-2" defaultValue={editingStok?.sale_discount || "0"} />
+                        <div className="space-y-0.5">
+                          <label className="block text-[10px] font-semibold text-slate-700 uppercase">Satış İsk.</label>
+                          <input name="sale_discount" type="number" step="0.1" className="input-field text-xs py-1.5" defaultValue={editingStok?.sale_discount || "0"} />
                         </div>
-                        <div className="space-y-1">
-                          <label className="block text-xs font-semibold text-slate-700">KDV</label>
-                          <input name="tax_rate" type="number" step="1" className="input-field text-sm py-2" defaultValue={editingStok?.tax_rate || "1"} />
+                        <div className="space-y-0.5">
+                          <label className="block text-[10px] font-semibold text-slate-700 uppercase">KDV%</label>
+                          <input name="tax_rate" type="number" step="1" className="input-field text-xs py-1.5" defaultValue={editingStok?.tax_rate || "1"} />
                         </div>
                       </div>
 
@@ -2481,9 +2522,9 @@ export default function App() {
                               type="button"
                               onClick={() => navigateStok('prev')}
                               disabled={currentIndex <= 0}
-                              className="btn-secondary px-4 py-3 flex items-center justify-center gap-2 disabled:opacity-30"
+                              className="btn-secondary px-3 py-2 flex items-center justify-center gap-2 disabled:opacity-30"
                             >
-                              <ChevronLeft size={20} />
+                              <ChevronLeft size={18} />
                             </button>
                             <button
                               type="button"
@@ -2500,22 +2541,22 @@ export default function App() {
                                   }
                                 }
                               }}
-                              className="btn-secondary px-4 py-3 flex items-center justify-center gap-2 bg-red-50 hover:bg-red-100 text-red-600 border-red-200"
+                              className="btn-secondary px-3 py-2 flex items-center justify-center gap-2 bg-red-50 hover:bg-red-100 text-red-600 border-red-200"
                             >
-                              <Trash2 size={18} />
+                              <Trash2 size={16} />
                             </button>
                           </>
                         )}
-                        <button type="submit" className="btn-primary flex-1 py-3 text-base shadow-lg shadow-indigo-500/20 flex items-center justify-center gap-2 text-white">
-                          <Settings size={18} />
-                          {subView === 'edit' ? 'Güncelle' : 'Kaydet'}
+                        <button type="submit" className="btn-primary flex-1 py-2.5 text-sm shadow-lg shadow-indigo-500/20 flex items-center justify-center gap-2 text-white font-bold uppercase tracking-widest">
+                          <Settings size={16} />
+                          {subView === 'edit' ? 'GÜNCELLE' : 'KAYDET'}
                         </button>
                         {subView === 'edit' && (
                           <button
                             type="button"
                             onClick={() => navigateStok('next')}
                             disabled={currentIndex >= sortedStocks.length - 1}
-                            className="btn-secondary px-4 py-3 flex items-center justify-center gap-2 disabled:opacity-30"
+                            className="btn-secondary px-3 py-2 flex items-center justify-center gap-2 disabled:opacity-30"
                           >
                             <ChevronRight size={20} />
                           </button>
@@ -2524,17 +2565,17 @@ export default function App() {
                     </form>
                   ) : subView === 'inventory' ? (
                     <div className="space-y-8">
-                      <div className="grid grid-cols-2 gap-3 mb-4">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
                         <div className="card bg-blue-50/50 border-blue-100 p-3">
                           <div className="text-[9px] font-bold text-blue-600 uppercase mb-0.5">TOPLAM (ALIŞ)</div>
                           <div className="text-lg font-black text-blue-900 leading-none">
-                            {formatCurrency(stocks.reduce((acc, s) => acc + (safeBalance(s.quantity) * safeBalance(s.purchase_price)), 0))}
+                            {(stocks.reduce((acc, s) => acc + (safeBalance(s.quantity) * safeBalance(s.purchase_price)), 0)).toLocaleString('tr-TR', { minimumFractionDigits: 3, maximumFractionDigits: 3 })} ₺
                           </div>
                         </div>
                         <div className="card bg-emerald-50/50 border-emerald-100 p-3">
                           <div className="text-[9px] font-bold text-emerald-600 uppercase mb-0.5">TOPLAM (SATIŞ)</div>
                           <div className="text-lg font-black text-emerald-900 leading-none">
-                            {formatCurrency(stocks.reduce((acc, s) => acc + (safeBalance(s.quantity) * safeBalance(s.sale_price)), 0))}
+                            {(stocks.reduce((acc, s) => acc + (safeBalance(s.quantity) * safeBalance(s.sale_price)), 0)).toLocaleString('tr-TR', { minimumFractionDigits: 3, maximumFractionDigits: 3 })} ₺
                           </div>
                         </div>
                       </div>
@@ -2551,8 +2592,10 @@ export default function App() {
                               {stocks.filter(s => safeBalance(s.quantity) > 0).map(s => (
                                 <tr key={s.id} className="hover:bg-blue-50/30 transition-colors">
                                   <td className="px-4 py-3">
-                                    <div className="font-bold text-slate-900 text-xs">{s.name}</div>
-                                    <div className="text-[10px] text-slate-400 font-mono">{s.code}</div>
+                                    <div className="font-bold text-slate-900 text-xs">
+                                      <span className="text-blue-600/50 mr-1.5 font-bold uppercase">{s.code}</span>
+                                      {s.name}
+                                    </div>
                                   </td>
                                   <td className="px-4 py-3 text-right">
                                     <div className="font-black text-slate-900 text-xs">{s.quantity} <span className="text-[8px] font-bold text-slate-400">{s.base_unit}</span></div>
@@ -2565,29 +2608,28 @@ export default function App() {
                       </div>
                     </div>
                   ) : (
-                    <div className="card overflow-hidden p-0 border-slate-100">
-                      <table className="w-full text-left">
-                        <thead className="bg-blue-50/30 border-b border-slate-200">
-                          <tr>
-                            <th className="px-4 py-3 text-sm font-bold text-slate-700 uppercase tracking-wider">Ürün (Kod / İsim)</th>
-                            <th className="px-4 py-3 text-sm font-bold text-slate-700 uppercase tracking-wider text-right">Alış KDV'siz</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-100">
-                          {[...stocks].sort((a, b) => a.code.localeCompare(b.code)).map((s, index) => (
-                            <tr
-                              key={s.id}
-                              className={`transition-colors cursor-pointer ${index % 2 === 0 ? 'bg-blue-50 hover:bg-blue-100' : 'bg-blue-50/50 hover:bg-blue-50/30'}`}
-                              onClick={() => { setEditingStok(s); setSubView('edit'); }}
-                            >
-                              <td className="px-4 py-4">
-                                <div className="font-semibold text-[11px] text-slate-900 leading-relaxed">{s.code} - {s.name}</div>
-                              </td>
-                              <td className="px-4 py-4 text-right font-black text-[13px] leading-none text-emerald-600">₺{(s.purchase_price_without_tax || s.purchase_price / (1 + (s.tax_rate || 1) / 100)).toLocaleString('tr-TR', { minimumFractionDigits: 3, maximumFractionDigits: 3 })}</td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
+                    <div className="overflow-hidden">
+                      <div className="flex px-2 py-1.5 bg-blue-50/30 border-b border-slate-200">
+                        <div className="flex-1 text-[11px] font-bold text-slate-700 uppercase tracking-wider">Ürün (Kod / İsim)</div>
+                        <div className="shrink-0 text-[11px] font-bold text-slate-700 uppercase tracking-wider text-right">Alış KDV'siz</div>
+                      </div>
+                      <div className="divide-y divide-slate-100">
+                        {[...stocks].sort((a, b) => a.code.localeCompare(b.code)).filter((s, i, arr) => arr.findIndex(x => x.code === s.code && x.name === s.name) === i).map((s, index) => (
+                          <div
+                            key={s.id}
+                            className={`flex items-center px-2 py-1.5 cursor-pointer ${index % 2 === 0 ? 'bg-blue-50/50' : 'bg-white'}`}
+                            onClick={() => { setEditingStok(s); setSubView('edit'); }}
+                          >
+                            <div className="flex-1 min-w-0 font-black text-[15px] text-slate-900 leading-none uppercase tracking-tight whitespace-nowrap overflow-hidden text-ellipsis pr-2">
+                              <span className="text-indigo-600/50 mr-1 font-bold">{s.code}</span>
+                              {s.name}
+                            </div>
+                            <div className="shrink-0 font-black text-[15px] text-emerald-600 whitespace-nowrap">
+                              ₺{(Number(s.purchase_price_without_tax) || Number(s.purchase_price) / (1 + (Number(s.tax_rate) || 1) / 100)).toLocaleString('tr-TR', { minimumFractionDigits: 3, maximumFractionDigits: 3 })}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
                     </div>
                   )}
                 </div>
@@ -2620,22 +2662,19 @@ export default function App() {
 
     if (subView === 'create_selection') {
       return (
-        <div className="relative min-h-[80vh] bg-blue-50/50 rounded-3xl overflow-hidden shadow-sm border border-slate-100 flex items-start justify-center pt-12">
-          <div className="w-full max-w-md px-4 py-4 flex flex-col gap-4 relative">
-            <button
-              onClick={() => setView('dashboard')}
-              className="absolute -top-10 left-2 p-2 hover:bg-slate-100 rounded-full transition-colors text-slate-500 z-10"
-            >
-              <ArrowDownLeft className="rotate-45" size={20} />
-            </button>
-
-            <div className="mb-4 flex items-center gap-3 text-indigo-600 justify-center">
-              <div className="p-2 bg-indigo-50 rounded-xl shadow-sm">
-                <FileText size={24} />
+        <div className="flex flex-col h-full bg-blue-50/50 overflow-hidden px-4 py-2">
+          <div className="w-full max-w-md mx-auto px-4 py-4 flex flex-col gap-4 relative">
+            <div className="flex items-center justify-center gap-3 mb-2 relative">
+              <div className="absolute left-4">
+                <BackButton onClick={() => setView('dashboard')} />
               </div>
-              <h3 className="text-xl font-black uppercase tracking-tight">Fatura Yönetimi</h3>
+              <div className="flex items-center gap-2">
+                <div className="p-1.5 bg-indigo-600 rounded-lg text-white shadow-sm">
+                  <FileText size={18} />
+                </div>
+                <h2 className="text-base font-extrabold text-slate-800 uppercase tracking-tight">Fatura Yönetimi</h2>
+              </div>
             </div>
-
             <div className="grid gap-3">
               <motion.button
                 whileHover={{ x: 8 }}
@@ -2741,7 +2780,8 @@ export default function App() {
       const selectedCariData = caris.find(c => String(c.id) === String(selectedCariId));
 
       return (
-        <div className="max-w-5xl mx-auto pb-28">
+        <div className="flex flex-col h-full bg-blue-50/50 overflow-hidden">
+          <div className="flex-1 overflow-y-auto px-1 custom-scrollbar pb-10 sm:pb-4">
           <form onSubmit={async (e) => {
             e.preventDefault();
             const submitBtn = e.currentTarget.querySelector('button[type="submit"]') as HTMLButtonElement;
@@ -2778,26 +2818,33 @@ export default function App() {
               alert('Hata: ' + (err.message || 'Bilinmeyen hata'));
               if (submitBtn) submitBtn.disabled = false;
             }
-          }} className="space-y-3.5">
+          }} className="space-y-2">
 
-            {/* Baï¿½xl1k */}
-            <div className="flex items-center gap-3 mb-2 pt-1">
-              <button type="button"
-                onClick={() => { setSubView('create_selection'); setInvoiceItems([]); setSelectedCariId(null); setIsEditingInvoice(false); }}
-                className="p-2 bg-white rounded-xl shadow-sm border border-slate-200 text-slate-400 hover:text-indigo-600 transition-colors"
-              ><ArrowLeft size={20} /></button>
-              <h2 className="text-lg font-black text-slate-800">
-                {isEditingInvoice ? 'Fatura Düzenle' : `Yeni ${invoiceType} Faturası`}
-              </h2>
+            <div className="flex items-center justify-center gap-3 mb-1.5 relative">
+              <div className="absolute left-4">
+                <BackButton onClick={() => { setSubView('create_selection'); setInvoiceItems([]); setSelectedCariId(null); setIsEditingInvoice(false); }} />
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="p-1 bg-indigo-600 rounded-lg text-white shadow-sm">
+                  <FilePlus size={16} />
+                </div>
+                <h2 className="text-base font-extrabold text-slate-800 uppercase tracking-tight leading-tight">
+                  {isEditingInvoice ? 'Fatura Güncelle' : `${invoiceType} Faturası`}
+                </h2>
+              </div>
             </div>
 
             {/* Cari */}
-            <div className="bg-white rounded-[1.5rem] border border-slate-200 p-4 mb-2 shadow-sm shadow-slate-200/70">
-              <div className="mb-2">
-                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Cari</span>
+            <div className="bg-white rounded-[1.5rem] border border-slate-200 p-2 mb-1.5 shadow-sm shadow-slate-200/70">
+              <div className="flex items-center justify-between mb-2">
+                <span className="ml-1 text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none">Cari</span>
+                <button type="button"
+                  onClick={() => { setIsCariModalOpen(true); setModalSearch(''); }}
+                  className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 bg-slate-900 text-white rounded-xl text-[10px] font-black uppercase tracking-[0.1em] hover:bg-slate-800 transition-colors shadow-sm"
+                ><Search size={12} /> Seç</button>
               </div>
               {selectedCariId ? (
-                <div className="rounded-[1.4rem] border border-emerald-100 bg-gradient-to-br from-emerald-50 via-white to-slate-50 p-4">
+                <div className="rounded-[1.4rem] border border-emerald-100 bg-gradient-to-br from-emerald-50 via-white to-slate-50 p-3">
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0 flex-1">
                       <p className="font-black text-slate-800 text-lg leading-tight truncate">
@@ -2808,26 +2855,18 @@ export default function App() {
                         {selectedCariData?.phone ? `  ${selectedCariData.phone}` : ''}
                       </p>
                     </div>
-                    <button type="button"
-                      onClick={() => { setIsCariModalOpen(true); setModalSearch(''); }}
-                      className="shrink-0 flex items-center gap-2 px-3 py-2 bg-slate-900 text-white rounded-xl text-xs font-black uppercase tracking-[0.18em] hover:bg-slate-800 transition-colors"
-                    ><Search size={13} /> Seç</button>
                   </div>
                 </div>
               ) : (
-                <div className="flex items-center justify-between gap-3">
+                <div className="p-3 bg-slate-50/50 rounded-[1.4rem] border border-dashed border-slate-200 text-center">
                   <p className="text-sm text-slate-400 italic">Cari seçilmedi...</p>
-                  <button type="button"
-                    onClick={() => { setIsCariModalOpen(true); setModalSearch(''); }}
-                    className="shrink-0 flex items-center gap-2 px-3 py-2 bg-slate-900 text-white rounded-xl text-xs font-black uppercase tracking-[0.18em] hover:bg-slate-800 transition-colors"
-                  ><Search size={13} /> Seç</button>
                 </div>
               )}
               <input type="hidden" name="cari_id" value={String(selectedCariId || '')} />
             </div>
 
             {/* Fatura Bilgileri */}
-            <div className="bg-white rounded-[1.5rem] border border-slate-200 p-4 mb-2 shadow-sm shadow-slate-200/70">
+            <div className="bg-white rounded-[1.5rem] border border-slate-200 p-2 mb-1.5 shadow-sm shadow-slate-200/70">
               <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-3">Fatura Bilgileri</span>
               <div className="space-y-2">
                 <div className="flex items-center gap-2">
@@ -2837,7 +2876,7 @@ export default function App() {
                     defaultValue={isEditingInvoice ? selectedInvoice?.invoice_no : generateInvoiceNo()}
                   />
                 </div>
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                   <div className="flex items-center gap-2">
                     <span className="text-xs font-bold text-slate-500 shrink-0">Tarih</span>
                     <input type="date" name="invoice_date"
@@ -2858,20 +2897,19 @@ export default function App() {
 
             <input type="hidden" name="type" value={invoiceType} />
 
-            {/* Ürünler */}
-            <div className="bg-white rounded-[1.5rem] border border-slate-200 overflow-hidden shadow-sm shadow-slate-200/70 mb-2">
-              <div className="flex items-center justify-between px-4 py-3 bg-slate-50/80 border-b border-slate-100">
-                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Ürünler ({invoiceItems.length})</span>
+            <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm shadow-slate-200/70 mb-1">
+              <div className="flex items-center justify-between px-2 py-2 bg-slate-50/80 border-b border-slate-100">
+                <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Ürünler ({invoiceItems.length})</span>
                 <button type="button"
                   onClick={() => { if (!selectedCariId) { alert('Önce cari seçin!'); return; } setIsStokModalOpen(true); setModalSearch(''); }}
-                  className="flex items-center gap-2 px-4 py-2.5 bg-indigo-600 text-white rounded-xl text-xs font-black uppercase tracking-[0.18em] hover:bg-indigo-700 transition-colors shadow-lg shadow-indigo-100"
-                ><Plus size={14} /> Ürün Ekle</button>
+                  className="flex items-center gap-1 px-2 py-1 bg-indigo-600 text-white rounded-lg text-[10px] font-black uppercase tracking-[0.1em] hover:bg-indigo-700 transition-colors shadow-lg shadow-indigo-100"
+                ><Plus size={12} /> Ekle</button>
               </div>
 
               {invoiceItems.length === 0 ? (
-                <div className="py-7 text-center">
-                  <Package size={32} className="mx-auto text-slate-200 mb-2" />
-                  <p className="text-sm text-slate-400 font-medium">Ürün eklenmedi</p>
+                <div className="py-4 text-center">
+                  <Package size={24} className="mx-auto text-slate-200 mb-1" />
+                  <p className="text-[11px] text-slate-400 font-medium">Ürün eklenmedi</p>
                 </div>
               ) : (
                 <div className="divide-y divide-slate-50">
@@ -2879,31 +2917,31 @@ export default function App() {
                     const details = getLineDetails(item);
                     const stok = details.stok;
                     return (
-                      <div key={idx} className="p-3 hover:bg-slate-50/50">
-                        <div className="flex items-start justify-between mb-2">
-                          <div>
-                            <p className="font-black text-slate-800 text-sm leading-tight">{stok?.name || '---'}</p>
-                            <p className="text-[10px] text-slate-400 font-mono">{stok?.code}</p>
+                      <div key={idx} className="p-2 hover:bg-slate-50/50 transition-colors">
+                        <div className="flex items-center justify-between mb-1.5">
+                          <div className="min-w-0 flex-1">
+                            <p className="font-black text-slate-800 text-[13px] leading-tight truncate uppercase tracking-tight">{stok?.name || '---'}</p>
+                            <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest">{stok?.code}</p>
                           </div>
                           <button type="button"
                             onClick={() => setInvoiceItems(invoiceItems.filter((_, i) => i !== idx))}
-                            className="p-1.5 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors ml-2 shrink-0"
+                            className="p-1 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors ml-1.5 shrink-0"
                           ><X size={14} /></button>
                         </div>
-                        <div className="grid grid-cols-5 gap-1.5 mb-2">
-                          <div>
-                            <label className="block text-[9px] font-bold text-slate-400 uppercase mb-0.5 text-center">Miktar</label>
+                        <div className="grid grid-cols-3 gap-1 mb-1.5">
+                          <div className="space-y-0.5">
+                            <label className="block text-[8px] font-bold text-slate-400 uppercase text-center tracking-tighter">MİKTAR</label>
                             <input type="number"
-                              className="w-full bg-white border border-slate-200 rounded-lg px-1 py-1.5 text-center font-black text-slate-800 focus:border-indigo-400 focus:outline-none text-xs"
+                              className="w-full bg-white border border-slate-200 rounded-lg px-1 py-1 text-center font-black text-slate-800 focus:border-indigo-400 focus:outline-none text-[11px] h-[28px]"
                               value={item.qty || ''}
                               step="0.01"
                               onChange={(e) => { const n = [...invoiceItems]; n[idx].qty = parseFloat(e.target.value) || 0; setInvoiceItems(n); }}
                             />
                           </div>
-                          <div>
-                            <label className="block text-[9px] font-bold text-slate-400 uppercase mb-0.5 text-center">Birim</label>
+                          <div className="space-y-0.5">
+                            <label className="block text-[8px] font-bold text-slate-400 uppercase text-center tracking-tighter">BİRİM</label>
                             <select
-                              className="w-full bg-white border border-slate-200 rounded-lg px-1 py-1.5 font-bold text-slate-600 focus:border-indigo-400 focus:outline-none text-xs"
+                              className="w-full bg-white border border-slate-200 rounded-lg px-1 py-1 font-bold text-slate-600 focus:border-indigo-400 focus:outline-none text-[11px] h-[28px] appearance-none"
                               value={item.unit_type}
                               onChange={(e) => { const n = [...invoiceItems]; n[idx].unit_type = e.target.value as 'base' | 'alt'; setInvoiceItems(n); }}
                             >
@@ -2911,41 +2949,52 @@ export default function App() {
                               {stok?.alt_unit && <option value="alt">{stok.alt_unit}</option>}
                             </select>
                           </div>
-                          <div>
-                            <label className="block text-[9px] font-bold text-slate-400 uppercase mb-0.5 text-center">Fiyat</label>
+                          <div className="space-y-0.5">
+                            <label className="block text-[8px] font-bold text-slate-400 uppercase text-center tracking-tighter">FİYAT</label>
                             <input type="number"
-                              className="w-full bg-white border border-slate-200 rounded-lg px-1 py-1.5 text-center font-black text-slate-800 focus:border-indigo-400 focus:outline-none text-xs"
-                              value={item.price === 0 ? '' : parseFloat(item.price.toFixed(3))}
+                              className="w-full bg-white border border-slate-200 rounded-lg px-1 py-1 text-center font-black text-slate-800 focus:border-indigo-400 focus:outline-none text-[11px] h-[28px]"
+                              value={item.price === 0 ? '' : item.price.toFixed(3)}
                               step="0.001"
                               onChange={(e) => { const n = [...invoiceItems]; n[idx].price = Math.round((parseFloat(e.target.value) || 0) * 1000) / 1000; setInvoiceItems(n); }}
                             />
                           </div>
-                          <div>
-                            <label className="block text-[9px] font-bold text-slate-400 uppercase mb-0.5 text-center">İsk%</label>
-                            <input type="number"
-                              className="w-full bg-white border border-slate-200 rounded-lg px-1 py-1.5 text-center font-bold text-slate-600 focus:border-indigo-400 focus:outline-none text-xs"
-                              value={item.discount === 0 ? '' : item.discount}
-                              step="0.1"
-                              onChange={(e) => { const n = [...invoiceItems]; n[idx].discount = parseFloat(e.target.value) || 0; setInvoiceItems(n); }}
-                            />
-                          </div>
-                          <div>
-                            <label className="block text-[9px] font-bold text-slate-400 uppercase mb-0.5 text-center">KDV%</label>
-                            <input type="number"
-                              className="w-full bg-white border border-slate-200 rounded-lg px-1 py-1.5 text-center font-bold text-slate-600 focus:border-indigo-400 focus:outline-none text-xs"
-                              value={item.tax}
-                              step="1"
-                              onChange={(e) => { const n = [...invoiceItems]; n[idx].tax = parseFloat(e.target.value) || 0; setInvoiceItems(n); }}
-                            />
-                          </div>
                         </div>
-                        <div className="flex items-center justify-between bg-indigo-50 rounded-lg px-3 py-1.5">
-                          <div className="text-[10px] text-slate-500">
-                            <span className="font-bold text-slate-700">{details.realQty.toFixed(0)}</span>
-                            <span className="ml-1">{stok?.base_unit}</span>
-                            {item.discount > 0 && <span className="ml-2 text-red-500">• İsk: ₺{fmt(details.discountAmount)}</span>}
+                        <div className="flex items-center justify-between bg-indigo-50/50 rounded-lg px-2 py-1 border border-indigo-100/50 relative">
+                          <div className="text-[9px] font-bold text-slate-500 uppercase flex gap-2 items-center">
+                            
+                            <div className="flex items-center gap-0.5 bg-white px-1.5 py-0.5 rounded border border-indigo-100 shadow-sm">
+                              <span className="text-slate-400">İSK:</span>
+                              <input 
+                                type="number" 
+                                className="w-8 bg-transparent border-none text-red-500 font-black focus:outline-none p-0 text-center text-[10px]"
+                                value={item.discount === 0 ? '' : item.discount}
+                                onChange={(e) => {
+                                  const n = [...invoiceItems];
+                                  n[idx].discount = parseFloat(e.target.value) || 0;
+                                  setInvoiceItems(n);
+                                }}
+                                placeholder="0"
+                              />
+                              <span className="text-slate-300">%</span>
+                            </div>
+
+                            <div className="flex items-center gap-0.5 bg-white px-1.5 py-0.5 rounded border border-indigo-100 shadow-sm">
+                              <span className="text-slate-400">KDV:</span>
+                              <input 
+                                type="number" 
+                                className="w-8 bg-transparent border-none text-emerald-600 font-black focus:outline-none p-0 text-center text-[10px]"
+                                value={item.tax === 0 ? '' : item.tax}
+                                onChange={(e) => {
+                                  const n = [...invoiceItems];
+                                  n[idx].tax = parseFloat(e.target.value) || 0;
+                                  setInvoiceItems(n);
+                                }}
+                                placeholder="0"
+                              />
+                              <span className="text-slate-300">%</span>
+                            </div>
                           </div>
-                          <div className="text-sm font-black text-indigo-600">₺{fmt(details.lineTotal)}</div>
+                          <div className="text-[13px] font-black text-indigo-700 tracking-tight">₺{fmt(details.lineTotal)}</div>
                         </div>
                       </div>
                     );
@@ -2954,24 +3003,22 @@ export default function App() {
               )}
             </div>
 
-            {/* Alt Toplamlar */}
-            <div className="bg-white rounded-[1.5rem] border border-slate-200 p-4 mb-2 shadow-sm shadow-slate-200/70">
-              <div className="space-y-2 mb-3">
-                <div className="flex justify-between text-sm"><span className="text-slate-500 font-semibold">Toplam:</span><span className="font-bold text-slate-700">₺{fmt(calcGross())}</span></div>
-                <div className="flex justify-between text-sm"><span className="text-slate-500 font-semibold">İsk.Toplamı:</span><span className="font-bold text-red-500">₺{fmt(calcDisc())}</span></div>
-                <div className="flex justify-between text-sm"><span className="text-slate-500 font-semibold">Ara Toplam:</span><span className="font-bold text-slate-700">₺{fmt(calcSub())}</span></div>
-                <div className="flex justify-between text-sm"><span className="text-slate-500 font-semibold">Ödenecek KDV:</span><span className="font-bold text-emerald-500">₺{fmt(calcTax())}</span></div>
+            <div className="bg-white rounded-2xl border border-slate-200 p-2 mb-1 shadow-sm">
+              <div className="grid grid-cols-2 gap-x-4 gap-y-1 mb-2">
+                <div className="flex justify-between text-[11px] font-bold text-slate-500 uppercase"><span className="opacity-60">Toplam:</span><span className="text-slate-800">₺{fmt(calcGross())}</span></div>
+                <div className="flex justify-between text-[11px] font-bold text-red-500 uppercase"><span className="opacity-60">İskonto:</span><span>₺{fmt(calcDisc())}</span></div>
+                <div className="flex justify-between text-[11px] font-bold text-slate-500 uppercase"><span className="opacity-60">Ara Top:</span><span className="text-slate-800">₺{fmt(calcSub())}</span></div>
+                <div className="flex justify-between text-[11px] font-bold text-emerald-600 uppercase"><span className="opacity-60">KDV:</span><span>₺{fmt(calcTax())}</span></div>
               </div>
-              <div className="bg-gradient-to-r from-slate-950 via-slate-900 to-indigo-900 rounded-[1.4rem] px-5 py-4 flex items-center justify-between">
-                <span className="text-xs font-bold text-white/80 uppercase tracking-wider">Genel Toplam</span>
-                <span className="text-xl font-black text-white">₺{fmt(calcTotal())}</span>
+              <div className="bg-gradient-to-r from-slate-900 to-indigo-900 rounded-xl px-4 py-2 flex items-center justify-between border-b-2 border-indigo-700 shadow-lg">
+                <span className="text-[10px] font-black text-white/70 uppercase tracking-widest">GENEL TOPLAM</span>
+                <span className="text-lg font-black text-white tracking-tight">₺{fmt(calcTotal())}</span>
               </div>
             </div>
 
-            {/* Butonlar */}
             <div className="grid gap-2 md:grid-cols-[minmax(0,1fr)_220px]">
               <button type="submit"
-                className="flex-1 py-3.5 bg-indigo-600 hover:bg-indigo-700 text-white font-black text-sm rounded-[1.2rem] shadow-lg shadow-indigo-200 uppercase tracking-[0.16em] transition-all"
+                className="flex-1 py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-black text-sm rounded-[1.2rem] shadow-lg shadow-indigo-200 uppercase tracking-[0.16em] transition-all"
               >{'Faturayı Onayla'}</button>
               <button type="button"
                 onClick={() => {
@@ -2987,65 +3034,67 @@ export default function App() {
                     type: invoiceType, total_amount: calcTotal(), items: invoiceItems
                   }, stocks, caris);
                 }}
-                className="px-4 py-4 bg-emerald-500 hover:bg-emerald-600 text-white rounded-[1.2rem] shadow-lg shadow-emerald-100 transition-all flex items-center justify-center gap-2 font-black uppercase tracking-[0.12em]"
+                className="px-4 py-3 bg-emerald-500 hover:bg-emerald-600 text-white rounded-[1.2rem] shadow-lg shadow-emerald-100 transition-all flex items-center justify-center gap-2 font-black uppercase tracking-[0.12em]"
                 title="WhatsApp Paylaş"
               ><Share2 size={18} /> WhatsApp</button>
             </div>
           </form>
+          </div>
         </div>
       );
     }
     return (
-      <div className="space-y-5">
-        <div className="flex items-center justify-between px-1">
-          <button
-            onClick={() => setSubView('create_selection')}
-            className="p-2.5 hover:bg-slate-100 rounded-full transition-colors text-slate-500"
-          >
-            <ArrowDownLeft className="rotate-45" size={24} />
-          </button>
-          <div className="flex items-center gap-3 text-indigo-600 flex-1 justify-center pr-11">
-            <History size={30} className="text-indigo-500" />
-            <h2 className="text-xl md:text-3xl font-black tracking-tight uppercase">Eski Faturalar</h2>
+      <div className="max-w-4xl mx-auto h-full flex flex-col overflow-hidden px-0">
+        <div className="flex items-center justify-center gap-3 shrink-0 pt-4 pb-4 px-4 border-b border-slate-100 bg-white/50 backdrop-blur-md relative">
+          <div className="absolute left-4">
+            <BackButton onClick={() => setSubView('create_selection')} />
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="p-1 bg-indigo-500 rounded-lg text-white shadow-sm">
+              <History size={18} />
+            </div>
+            <h2 className="text-lg font-extrabold text-slate-800 uppercase tracking-tight">Eski Faturalar</h2>
           </div>
         </div>
-        <div className="bg-white rounded-[2rem] border border-slate-200 shadow-sm overflow-hidden">
-          <div className="divide-y divide-slate-100">
-            {sortedInvoices.map((invoice) => {
-              const detailTone = fixTR(invoice.type) === 'Satış'
-                ? 'text-indigo-500'
-                : 'text-slate-500';
-
-              return (
+        <div className="flex-1 overflow-y-auto px-4 custom-scrollbar pb-20 sm:pb-4">
+          <div className="bg-white rounded-[2rem] border border-slate-200 shadow-sm overflow-hidden">
+            <div className="divide-y divide-slate-100">
+              {sortedInvoices.map((invoice) => (
                 <button
                   key={invoice.id}
                   type="button"
-                  className="w-full px-4 py-2 text-left hover:bg-blue-50/30 transition-colors"
+                  className="w-full px-3 py-2 text-left hover:bg-blue-50/40 transition-colors border-b border-slate-50"
                   onClick={() => {
                     setSelectedInvoice(normalizeInvoice(invoice));
                     setIsInvoiceDetailOpen(true);
                   }}
                 >
-                  <div className="grid grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-x-3 gap-y-1.5">
-                    <div className="min-w-0 text-[17px] sm:text-[20px] font-black text-slate-900 leading-tight truncate">
-                      {invoice.cari_name}
-                    </div>
-                    <div className="shrink-0 text-sm sm:text-base font-medium text-slate-500 whitespace-nowrap">
-                      {displayDate(invoice.date)}
-                    </div>
-                    <div className="text-right pl-1">
-                      <div className="text-[20px] sm:text-[24px] font-black text-slate-900 leading-none whitespace-nowrap">
-                        ₺{Number(invoice.total_amount || 0).toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  <div className="grid grid-cols-[1fr_auto] items-start gap-x-3">
+                    <div className="min-w-0">
+                      <div className="font-black text-[15px] text-slate-900 leading-tight truncate uppercase tracking-tight">
+                        {invoice.cari_name}
+                      </div>
+                      <div className="flex gap-2 items-center mt-0.5">
+                        <span className={`text-[9px] font-black uppercase px-1 rounded border ${fixTR(invoice.type) === 'Satış' ? 'bg-indigo-50 text-indigo-600 border-indigo-100' : 'bg-slate-50 text-slate-500 border-slate-100'}`}>
+                          {fixTR(invoice.type)}
+                        </span>
+                        <span className="text-[10px] font-bold text-slate-400">
+                          {displayDate(invoice.date)}
+                        </span>
                       </div>
                     </div>
-
-                    <div className={`col-span-2 text-sm sm:text-base font-black uppercase tracking-wide ${detailTone}`}>
-                      {fixTR(invoice.type)} Faturası
+                    <div className="text-right">
+                      <div className="text-[16px] font-black text-slate-900 leading-none">
+                        {formatCurrency(Number(invoice.total_amount || 0))}
+                      </div>
+                      <div className="text-[9px] font-bold text-slate-400 mt-1 uppercase tracking-tight">
+                        {invoice.invoice_no}
+                      </div>
                     </div>
                   </div>
                 </button>
-              );
-            })}
+              ))}
+            </div>
 
             {sortedInvoices.length === 0 && (
               <div className="px-6 py-12 text-center text-slate-500">
@@ -3172,17 +3221,28 @@ export default function App() {
     };
 
     return (
-      <div className="space-y-6">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <h2 className="text-2xl font-bold text-slate-900">Kullanıcı Yönetimi</h2>
-            <p className="text-sm text-slate-500 mt-1">Ayarlar, kullanıcı işlemleri ve veri araçları bu alanda toplandı.</p>
+      <div className="flex flex-col h-full bg-blue-50/50 overflow-hidden">
+        <div className="flex items-center justify-center gap-3 shrink-0 pt-4 pb-4 px-4 relative">
+          <div className="absolute left-4">
+            <BackButton onClick={() => setView('dashboard')} />
           </div>
           <div className="flex items-center gap-2">
-            <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">Sistem Durumu:</span>
-            <span className="px-2 py-1 bg-emerald-100 text-emerald-700 text-[10px] font-black rounded-lg uppercase">Çevrimiçi</span>
+            <div className="p-1.5 bg-indigo-600 rounded-lg text-white shadow-sm">
+              <Settings size={18} />
+            </div>
+            <h2 className="text-lg font-extrabold text-slate-800 uppercase tracking-tight">Kullanıcı Ayarları</h2>
           </div>
         </div>
+        <div className="flex-1 overflow-y-auto px-2 custom-scrollbar space-y-6 pt-2 pb-24">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-6">
+            <div className="flex flex-col gap-1">
+              <p className="text-sm text-slate-500">Ayarlar, kullanıcı işlemleri ve veri araçları bu alanda toplandı.</p>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">Sistem Durumu:</span>
+              <span className="px-2 py-1 bg-emerald-100 text-emerald-700 text-[10px] font-black rounded-lg uppercase">Çevrimiçi</span>
+            </div>
+          </div>
 
         {isSuperAdmin && (
           <div className="space-y-6">
@@ -3419,30 +3479,15 @@ export default function App() {
           </div>
         </div>
       </div>
-    );
-  };
+    </div>
+  );
+};
 
   const shouldRenderSidebar = view !== 'dashboard' || isSidebarOpen;
 
   return (
-    <div className="h-screen flex bg-blue-50/50 relative overflow-hidden">
-      {/* Mobile Header */}
-      {view !== 'fatura' && (
-        <div className="lg:hidden fixed top-0 left-0 right-0 h-16 bg-blue-50/50 border-b border-slate-200 flex items-center justify-between px-4 z-40">
-          <div className="flex items-center gap-2">
-            <div className="bg-indigo-600 p-1.5 rounded-lg text-white">
-              <LayoutDashboard size={18} />
-            </div>
-            <h1 className="font-bold text-base">{'\u00d6n Muhasebe'}</h1>
-          </div>
-          <button
-            onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-            className="p-2 text-slate-500 hover:bg-blue-50/30 rounded-lg"
-          >
-            {isSidebarOpen ? <X size={24} /> : <Menu size={24} />}
-          </button>
-        </div>
-      )}
+    <div className="h-[100dvh] flex bg-blue-50/50 relative overflow-hidden">
+      {/* Mobile Header hidden to provide full screen experience */}
 
       {/* Sidebar Overlay */}
       <AnimatePresence>
@@ -3470,7 +3515,7 @@ export default function App() {
                 <div className="bg-indigo-600 p-2 rounded-lg text-white">
                   <LayoutDashboard size={20} />
                 </div>
-                <h1 className="font-bold text-lg">{'\u00d6n Muhasebe'}</h1>
+
               </div>
             )}
             <button
@@ -3529,20 +3574,32 @@ export default function App() {
       )}
 
       {/* Main Content */}
-      <main className={`flex-1 min-w-0 transition-all duration-300 ${view === 'fatura' ? 'p-2 pt-16 lg:pt-4' : 'p-4 md:p-8 pt-20 lg:pt-8'} ${view === 'dashboard' ? 'overflow-hidden lg:ml-0' : `overflow-y-auto ${isSidebarCollapsed ? 'lg:ml-20' : 'lg:ml-64'}`}`}>
+      <main className={`flex-1 min-w-0 transition-all duration-300 p-0 ${view === 'fatura' ? 'pt-0 lg:pt-4' : 'pt-0 lg:pt-8'} h-[100dvh] overflow-hidden ${isSidebarCollapsed ? 'lg:ml-20' : 'lg:ml-64'}`}>
         {view === 'dashboard' && (
-          <header className={`flex flex-col md:flex-row md:items-center justify-between mb-4 gap-2`}>
-            <div className="flex items-center gap-4">
-              <div>
-                <h2 className="text-xl md:text-3xl font-bold text-slate-900">
+          <div className="px-4">
+            {/* Brand Header */}
+            <div className="flex flex-col items-center justify-center pt-4 pb-2">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 bg-indigo-600 rounded-xl text-white shadow-lg shadow-indigo-200">
+                  <LayoutDashboard size={22} />
+                </div>
+                <h1 className="text-xl font-black text-slate-900 uppercase tracking-tight">
+                  Ön Muhasebe
+                </h1>
+              </div>
+            </div>
+
+            <header className={`flex justify-center mb-4`}>
+              <div className="bg-gradient-to-r from-indigo-500 to-blue-500 rounded-2xl shadow-lg p-4 text-center">
+                <h2 className="text-2xl font-black text-white uppercase tracking-tight">
                   Hoş Geldiniz
                 </h2>
-                <p className="text-sm text-slate-500 mt-1">
+                <p className="text-sm text-white/80 mt-1 font-semibold">
                   {new Date().toLocaleDateString('tr-TR', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
                 </p>
               </div>
-            </div>
-          </header>
+            </header>
+          </div>
         )}
 
         <AnimatePresence mode="wait">
@@ -3552,6 +3609,7 @@ export default function App() {
             animate={{ opacity: 1, x: 0 }}
             exit={{ opacity: 0, x: -10 }}
             transition={{ duration: 0.2 }}
+            className="h-full flex flex-col"
           >
             {!hasPermission(view) ? (
               <div className="card text-center py-20">
@@ -3685,7 +3743,7 @@ export default function App() {
                       const qtyInput = (document.getElementById('modal_qty') as HTMLInputElement).value;
                       const qty = parseFloat(qtyInput);
                       if (!qtyInput || isNaN(qty) || qty <= 0) {
-                        alert('Lütfen geï¿½erli bir miktar girin');
+                        alert('Lütfen geçerli bir miktar girin');
                         return;
                       }
                       const unitType = (document.getElementById('modal_unit_type') as HTMLSelectElement).value as 'base' | 'alt';
@@ -3722,7 +3780,7 @@ export default function App() {
                   <div className="p-4 bg-indigo-50 rounded-2xl border border-indigo-100">
                     <p className="font-bold text-indigo-900">{selectedStok.code} - {selectedStok.name}</p>
                   </div>
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
                       <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5 ml-1">Miktar</label>
                       <input
@@ -3850,7 +3908,7 @@ export default function App() {
             </div>
 
             {/* Modal Footer / Actions */}
-            <div className="p-4 bg-blue-50/30 border-t border-slate-100 grid grid-cols-3 gap-2">
+            <div className="p-4 bg-blue-50/30 border-t border-slate-100 grid grid-cols-1 sm:grid-cols-3 gap-2">
               <button
                 onClick={() => shareInvoiceOnWhatsApp(selectedInvoice, stocks, caris)}
                 className="bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-3 rounded-xl transition-all shadow-sm flex flex-col items-center justify-center gap-1"

@@ -62,7 +62,7 @@ export const login = async (email: string, password: string, rememberMe: boolean
     };
   }
 
-  return { success: false, message: 'E-posta veya ?ifre hatal?' };
+  return { success: false, message: 'E-posta veya şifre hatalı' };
 };
 
 // Register
@@ -83,7 +83,7 @@ export const register = async (email: string, password: string, fullName: string
     return { success: false, message: 'Bu e-posta zaten kullanımda' };
   }
 
-  const role = email.trim().toLowerCase() === 'selahattin50@gmail.com' ? 'Y?netici' : 'Muhasebeci';
+  const role = email.trim().toLowerCase() === 'selahattin50@gmail.com' ? 'Yönetici' : 'Muhasebeci';
   const newUser = { id: generateId(), email, password, fullName, phone, role, isBanned: false };
   users.push(newUser);
   saveToLocalStorage('users', users);
@@ -502,6 +502,19 @@ export const toggleUserBan = async (userId: string, isBanned: boolean) => {
   );
   saveToLocalStorage('users', nextUsers);
   return { success: true };
+};
+
+export const updateUserRole = async (userId: string, role: string) => {
+  if (USE_FIREBASE) {
+    return await FirebaseAPI.updateUserRole(userId, role);
+  }
+
+  const users = getFromLocalStorage('users', []);
+  const nextUsers = users.map((user: any) =>
+    String(user.id) === String(userId) ? { ...user, role } : user
+  );
+  saveToLocalStorage('users', nextUsers);
+  return { success: true, role };
 };
 
 export const recalculateCaris = async () => {

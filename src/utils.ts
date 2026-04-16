@@ -53,3 +53,6 @@ export const formatCurrencyColor = (amount: number): string => {
   if (amount < 0) return 'text-red-600';
   return 'text-slate-600';
 };
+
+// Fiyat gösterimi (displayBalance ile aynı, alias)
+export const displayPrice = displayBalance;
