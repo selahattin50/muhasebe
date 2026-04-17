@@ -620,48 +620,49 @@ export const addTransaction = async (data: any) => {
 
 export const deleteTransaction = async (id: string) => {
   try {
-    return await runTransaction(db, async (transaction) => {
-      const transRef = doc(db, COLLECTIONS.TRANSACTIONS, id);
-      const transSnap = await transaction.get(transRef);
+    const uid = getCurrentUserId();
 
-      if (!transSnap.exists()) {
-        throw new Error('Hareket bulunamadı');
-      }
+    // Önce transaction verisini oku
+    const transRef = doc(db, COLLECTIONS.TRANSACTIONS, id);
+    const transSnap = await getDoc(transRef);
+    if (!transSnap.exists()) throw new Error('Hareket bulunamadı');
+    const data = transSnap.data();
 
-      const data = transSnap.data();
+    // Kasa kaydını bul (transaction dışında, userId filtreli)
+    let kasaDocRef: any = null;
+    try {
+      const kasaQuery = query(
+        collection(db, COLLECTIONS.KASA),
+        where('userId', '==', uid),
+        where('date', '==', data.date),
+        where('amount', '==', data.amount)
+      );
+      const kasaSnapshot = await getDocs(kasaQuery);
+      const found = kasaSnapshot.docs.find(d => {
+        const desc = d.data().description || '';
+        return desc.includes('Cari İşlem');
+      });
+      if (found) kasaDocRef = found.ref;
+    } catch (_) { /* kasa bulunamazsa devam et */ }
 
-      // 1. Cari bakiye etkisini geri al
+    // Firestore transaction ile sil
+    await runTransaction(db, async (transaction) => {
+      // Cari bakiye etkisini geri al
       if (data.cari_id) {
         const cariRef = doc(db, COLLECTIONS.CARIS, String(data.cari_id));
-        // Alacak girilmişti (-), silerken artırıyoruz (+).
-        // Borç girilmişti (+), silerken azaltıyoruz (-).
         const balanceCorrection = isAlacak(data.type) ? data.amount : -data.amount;
         transaction.update(cariRef, {
           balance: increment(balanceCorrection),
           updatedAt: Timestamp.now()
         });
       }
-
-      // 2. Kasa kaydini bul ve sil
-      const kasaQuery = query(
-        collection(db, COLLECTIONS.KASA),
-        where('date', '==', data.date),
-        where('amount', '==', data.amount)
-      );
-      const kasaSnapshot = await getDocs(kasaQuery);
-      const targetKasaDoc = kasaSnapshot.docs.find(d => {
-        const desc = d.data().description || '';
-        return desc.includes(data.description) || desc.includes('Cari İşlem');
-      });
-
-      if (targetKasaDoc) {
-        transaction.delete(targetKasaDoc.ref);
-      }
-
-      // 3. Hareketi sil
+      // Kasa kaydını sil
+      if (kasaDocRef) transaction.delete(kasaDocRef);
+      // Hareketi sil
       transaction.delete(transRef);
-      return { success: true };
     });
+
+    return { success: true };
   } catch (error) {
     console.error('deleteTransaction failed:', error);
     throw error;

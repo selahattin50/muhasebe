@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { App as CapApp } from '@capacitor/app';
 import { Share } from '@capacitor/share';
 import { Filesystem, Directory } from '@capacitor/filesystem';
@@ -128,6 +128,12 @@ interface Invoice {
 }
 
 const normalizeUser = (user: User | null) => { if (!user) return null; return { ...user }; };
+
+const normalizeKasaType = (type: string | null | undefined): 'Giriş' | 'Çıkış' => {
+  const s = fixTR(String(type || '')).toLowerCase().trim();
+  if (s.includes('giri')) return 'Giriş';
+  return 'Çıkış';
+};
 
 // --- Helper Functions ---
 
@@ -1221,6 +1227,27 @@ const computeStockQuantities = (stocks: Stok[], invoices: Invoice[]): Stok[] =>
     };
   });
 
+const mergeStocksByIdentity = (stocks: Stok[]) => {
+  const merged = new Map<string, Stok>();
+
+  stocks.forEach((stock) => {
+    const key = `${normalizeCompare(stock.code)}__${normalizeCompare(stock.name)}`;
+    const existing = merged.get(key);
+
+    if (!existing) {
+      merged.set(key, { ...stock, quantity: safeBalance(stock.quantity) });
+      return;
+    }
+
+    merged.set(key, {
+      ...existing,
+      quantity: safeBalance(existing.quantity) + safeBalance(stock.quantity),
+    });
+  });
+
+  return Array.from(merged.values());
+};
+
 
 
 const generateMovementPDF = async (tx: any, cariName: string, settings: any) => {
@@ -1324,10 +1351,9 @@ const BackButton = ({ onClick }: { onClick: () => void }) => (
 const InventoryView = ({ stocks }: { stocks: Stok[] }) => {
   const [mode, setMode] = React.useState<'adet' | 'koli'>('adet');
   // Sıfır hariç hepsini göster (negatif dahil)
-  const filtered = [...stocks]
+  const filtered = mergeStocksByIdentity(stocks)
     .filter(s => safeBalance(s.quantity) !== 0)
     .sort((a, b) => a.code.localeCompare(b.code))
-    .filter((s, i, arr) => arr.findIndex(x => x.code === s.code && x.name === s.name) === i);
 
   const getDisplay = (s: Stok) => {
     if (mode === 'adet') {
@@ -1419,6 +1445,11 @@ export default function App() {
   const [movementSortOrder, setMovementSortOrder] = useState<'asc' | 'desc'>('desc');
   const [movementDate, setMovementDate] = useState<string>('');
   const [movementTime, setMovementTime] = useState<string>('');
+  const [movementBorcAmount, setMovementBorcAmount] = useState<string>('');
+  const [movementAlacakAmount, setMovementAlacakAmount] = useState<string>('');
+  const [preferredMovementSide, setPreferredMovementSide] = useState<'borc' | 'alacak' | null>(null);
+  const movementBorcInputRef = useRef<HTMLInputElement | null>(null);
+  const movementAlacakInputRef = useRef<HTMLInputElement | null>(null);
 
   // Cari list sorting states
   const [cariSortBy, setCariSortBy] = useState<'name' | 'code' | 'balance' | 'date'>('date');
@@ -1505,6 +1536,54 @@ export default function App() {
       setSelectedCariForMovement(null);
     }
   }, [subView]);
+
+  useEffect(() => {
+    if (!editingTransaction) {
+      setMovementBorcAmount('');
+      setMovementAlacakAmount('');
+      return;
+    }
+
+    const raw = String(editingTransaction.type || '').toLowerCase().trim();
+    const isBorc = raw === 'borç' || raw === 'borc' || raw.startsWith('bor');
+    const nextAmount = formatForInput(Math.abs(Number(editingTransaction.amount) || 0));
+
+    setMovementBorcAmount(isBorc ? nextAmount : '');
+    setMovementAlacakAmount(!isBorc ? nextAmount : '');
+  }, [editingTransaction]);
+
+  useEffect(() => {
+    if (editingTransaction) return;
+
+    const selectedCari = selectedCariForMovement
+      ? caris.find(c => String(c.id) === String(selectedCariForMovement))
+      : null;
+
+    if (!selectedCari) {
+      setPreferredMovementSide(null);
+      setMovementBorcAmount('');
+      setMovementAlacakAmount('');
+      return;
+    }
+
+    const balance = formatBalance(selectedCari.balance);
+    const nextSide = balance < 0 ? 'alacak' : balance > 0 ? 'borc' : null;
+    const nextAmount = formatForInput(Math.abs(balance));
+    setPreferredMovementSide(nextSide);
+
+    if (nextSide === 'borc') {
+      setMovementBorcAmount(nextAmount);
+      setMovementAlacakAmount('');
+      setTimeout(() => movementBorcInputRef.current?.focus(), 0);
+    } else if (nextSide === 'alacak') {
+      setMovementAlacakAmount(nextAmount);
+      setMovementBorcAmount('');
+      setTimeout(() => movementAlacakInputRef.current?.focus(), 0);
+    } else {
+      setMovementBorcAmount('');
+      setMovementAlacakAmount('');
+    }
+  }, [selectedCariForMovement, caris, editingTransaction]);
 
   const fetchData = async () => {
     try {
@@ -1992,18 +2071,17 @@ export default function App() {
                     <label className="block text-[9px] font-bold text-red-500 uppercase tracking-tight ml-1">ÖDEME / GİDER</label>
                     <div className="relative">
                       <input 
+                        ref={movementBorcInputRef}
                         name="borc_amount" 
                         type="text" 
                         inputMode="decimal"
-                        className="input-field text-sm py-1.5 font-bold text-red-600 bg-red-50/30 border-red-100" 
+                        className={`input-field text-sm py-1.5 font-bold text-red-600 bg-red-50/30 border-red-100 ${preferredMovementSide === 'borc' ? '!border-red-300 !bg-red-50/60' : ''}`} 
                         placeholder="0,00" 
-                        defaultValue={(() => {
-                          const t = editingTransaction;
-                          if (!t) return "";
-                          const raw = String(t.type || '').toLowerCase().trim();
-                          const isBorc = raw === 'borç' || raw === 'borc' || raw.startsWith('bor');
-                          return isBorc ? formatForInput(Math.abs(t.amount)) : "";
-                        })()} 
+                        value={movementBorcAmount}
+                        onChange={(e) => {
+                          setMovementBorcAmount(e.target.value);
+                          if (e.target.value) setMovementAlacakAmount('');
+                        }}
                       />
                       <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] font-bold text-red-300">TL</span>
                     </div>
@@ -2012,18 +2090,17 @@ export default function App() {
                     <label className="block text-[9px] font-bold text-emerald-600 uppercase tracking-tight ml-1">TAHSİLAT / GELİR</label>
                     <div className="relative">
                       <input 
+                        ref={movementAlacakInputRef}
                         name="alacak_amount" 
                         type="text" 
                         inputMode="decimal"
-                        className="input-field text-sm py-1.5 font-bold text-emerald-600 bg-emerald-50/30 border-emerald-100" 
+                        className={`input-field text-sm py-1.5 font-bold text-emerald-600 bg-emerald-50/30 border-emerald-100 ${preferredMovementSide === 'alacak' ? '!border-emerald-300 !bg-emerald-50/60' : ''}`} 
                         placeholder="0,00" 
-                        defaultValue={(() => {
-                          const t = editingTransaction;
-                          if (!t) return "";
-                          const raw = String(t.type || '').toLowerCase().trim();
-                          const isAlacak = raw === 'alacak';
-                          return isAlacak ? formatForInput(Math.abs(t.amount)) : "";
-                        })()} 
+                        value={movementAlacakAmount}
+                        onChange={(e) => {
+                          setMovementAlacakAmount(e.target.value);
+                          if (e.target.value) setMovementBorcAmount('');
+                        }}
                       />
                       <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] font-bold text-emerald-300">TL</span>
                     </div>
@@ -2525,12 +2602,12 @@ export default function App() {
                   <tr key={t.id} className="hover:bg-blue-50/30 transition-colors border-b border-slate-50/50">
                     <td className="px-4 py-3 text-xs text-slate-500 font-medium">{displayDate(t.date)}</td>
                     <td className="px-4 py-3 text-xs">
-                      <span className={`px-2 py-0.5 rounded-lg text-[10px] font-black uppercase ${t.type === 'Giriş' ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}`}>
-                        {t.type}
+                      <span className={`px-2 py-0.5 rounded-lg text-[10px] font-black uppercase ${normalizeKasaType(t.type) === 'Giriş' ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}`}>
+                        {normalizeKasaType(t.type)}
                       </span>
                     </td>
-                    <td className={`px-4 py-3 text-sm font-black text-right ${t.type === 'Giriş' ? 'text-emerald-600' : 'text-red-600'}`}>
-                      {formatCurrency(t.type === 'Giriş' ? t.amount : -t.amount)}
+                    <td className={`px-4 py-3 text-sm font-black text-right ${normalizeKasaType(t.type) === 'Giriş' ? 'text-emerald-600' : 'text-red-600'}`}>
+                      {formatCurrency(normalizeKasaType(t.type) === 'Giriş' ? t.amount : -t.amount)}
                     </td>
                   </tr>
                 ))}
@@ -2833,7 +2910,7 @@ export default function App() {
                         <div className="shrink-0 text-[11px] font-bold text-slate-700 uppercase tracking-wider text-right">Alış KDV'siz</div>
                       </div>
                       <div className="divide-y divide-slate-100">
-                        {[...stocks].sort((a, b) => a.code.localeCompare(b.code)).filter((s, i, arr) => arr.findIndex(x => x.code === s.code && x.name === s.name) === i).map((s, index) => (
+                        {mergeStocksByIdentity([...stocks].sort((a, b) => a.code.localeCompare(b.code))).map((s, index) => (
                           <div
                             key={s.id}
                             className={`flex items-center px-2 py-1.5 cursor-pointer ${index % 2 === 0 ? 'bg-blue-50/50' : 'bg-white'}`}
@@ -3172,7 +3249,7 @@ export default function App() {
                             <label className="block text-[8px] font-bold text-slate-400 uppercase text-center tracking-tighter">FİYAT</label>
                             <input type="number"
                               className="w-full bg-white border border-slate-200 rounded-lg px-1 py-1 text-center font-black text-slate-800 focus:border-indigo-400 focus:outline-none text-[11px] h-[28px]"
-                              value={item.price === 0 ? '' : item.price.toFixed(3)}
+                              value={item.price === 0 ? '' : String(Number(item.price))}
                               step="0.001"
                               onChange={(e) => { const n = [...invoiceItems]; n[idx].price = Math.round((parseFloat(e.target.value) || 0) * 1000) / 1000; setInvoiceItems(n); }}
                             />
@@ -3929,7 +4006,7 @@ export default function App() {
             </div>
             {!selectedStok ? (
               <div className="flex-1 overflow-y-auto p-2">
-                {stocks.filter(s =>
+                {mergeStocksByIdentity(stocks).filter(s =>
                   s.name.toLowerCase().includes(modalSearch.toLowerCase()) ||
                   s.code.toLowerCase().includes(modalSearch.toLowerCase())
                 ).sort((a, b) => a.code.localeCompare(b.code, 'tr', { numeric: true })).map(s => (
