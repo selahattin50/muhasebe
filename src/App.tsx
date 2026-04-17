@@ -330,6 +330,20 @@ const getCariLedgerType = (cariType: string | null | undefined, transactionType:
   return normalizedType;
 };
 
+const getCariInvoiceLedgerType = (cariType: string | null | undefined, invoiceType: string | null | undefined): 'Borç' | 'Alacak' | '' => {
+  const normalizedCariType = normalizeCariRole(cariType);
+  const normalizedInvoiceType = normalizeInvoiceType(invoiceType);
+
+  if (normalizedCariType === 'Satıcı') {
+    if (normalizedInvoiceType === 'Alış') return 'Alacak';
+    if (normalizedInvoiceType === 'Satış') return 'Borç';
+  }
+
+  if (normalizedInvoiceType === 'Alış') return 'Borç';
+  if (normalizedInvoiceType === 'Satış') return 'Alacak';
+  return '';
+};
+
 const normalizeCompare = (value: string | number | null | undefined) =>
   fixTR(String(value || ''))
     .trim()
@@ -1157,6 +1171,56 @@ const normalizeInvoice = (invoice: any): Invoice => ({
   items: normalizeInvoiceItems(invoice?.items),
 });
 
+const computeCariBalances = (caris: Cari[], invoices: Invoice[], transactions: any[]): Cari[] =>
+  caris.map((cari) => {
+    const invoiceBalance = invoices.reduce((sum, inv) => {
+      if (String(inv.cari_id) !== String(cari.id)) return sum;
+      const amount = Number(inv.total_amount) || 0;
+      const invoiceLedgerType = getCariInvoiceLedgerType(cari.type, inv.type);
+      if (invoiceLedgerType === 'Alacak') return sum + amount;
+      if (invoiceLedgerType === 'Borç') return sum - amount;
+      return sum;
+    }, 0);
+
+    const transactionBalance = transactions.reduce((sum, tx) => {
+      if (String(tx?.cari_id ?? '') !== String(cari.id)) return sum;
+      const amount = Number(tx?.amount) || 0;
+      const txType = normalizeCariTransactionType(tx?.type);
+      if (txType === 'Borç') return sum - amount;
+      if (txType === 'Alacak') return sum + amount;
+      return sum;
+    }, 0);
+
+    return {
+      ...cari,
+      balance: invoiceBalance + transactionBalance,
+    };
+  });
+
+const computeStockQuantities = (stocks: Stok[], invoices: Invoice[]): Stok[] =>
+  stocks.map((stock) => {
+    const quantity = invoices.reduce((sum, invoice) => {
+      const normalizedInvoiceType = normalizeInvoiceType(invoice.type, invoice.invoice_no);
+
+      const invoiceQty = (invoice.items || []).reduce((itemSum, item) => {
+        if (String(item?.stok_id ?? '') !== String(stock.id)) return itemSum;
+        const rawQty = Number(item?.qty) || 0;
+        const factor = Number(stock.conversion_factor) || 1;
+        const realQty = item?.unit_type === 'alt' ? rawQty * factor : rawQty;
+        return itemSum + realQty;
+      }, 0);
+
+      if (normalizedInvoiceType === 'Alış') return sum + invoiceQty;
+      if (normalizedInvoiceType === 'Satış') return sum - invoiceQty;
+      return sum;
+    }, 0);
+
+    return {
+      ...stock,
+      quantity,
+    };
+  });
+
 
 
 const generateMovementPDF = async (tx: any, cariName: string, settings: any) => {
@@ -1455,33 +1519,42 @@ export default function App() {
         API.fetchTransactions().catch(() => [])
       ]);
 
-      const sortedCaris = sortCarisByCode(caris);
+      const normalizedInvoices = invoices.map(normalizeInvoice);
+      const computedStocks = computeStockQuantities(stocks, normalizedInvoices);
+      const computedCaris = computeCariBalances(caris, normalizedInvoices, transactions);
+      const sortedCaris = sortCarisByCode(computedCaris);
       setCaris(sortedCaris);
-      setStocks(stocks);
+      setStocks(computedStocks);
       setKasaData(kasa);
-      setInvoices(invoices.map(normalizeInvoice));
+      setInvoices(normalizedInvoices);
       setAllUsers(users);
       setSettings(settings);
       setTransactions(transactions);
 
       // LocalStorage'a yedek olarak kaydet
       localStorage.setItem('caris', JSON.stringify(sortedCaris));
-      localStorage.setItem('stocks', JSON.stringify(stocks));
+      localStorage.setItem('stocks', JSON.stringify(computedStocks));
       localStorage.setItem('kasa', JSON.stringify(kasa));
-      localStorage.setItem('invoices', JSON.stringify(invoices.map(normalizeInvoice)));
+      localStorage.setItem('invoices', JSON.stringify(normalizedInvoices));
       localStorage.setItem('users', JSON.stringify(users));
       localStorage.setItem('settings', JSON.stringify(settings));
       localStorage.setItem('transactions', JSON.stringify(transactions));
     } catch (error) {
       console.error('Veri y?kleme hatas?:', error);
       // Hata durumunda LocalStorage'dan y?kle
-      setCaris(sortCarisByCode(JSON.parse(localStorage.getItem('caris') || '[]')));
-      setStocks(JSON.parse(localStorage.getItem('stocks') || '[]'));
-      setKasaData(JSON.parse(localStorage.getItem('kasa') || '{"transactions":[],"balance":0}'));
-      setInvoices(JSON.parse(localStorage.getItem('invoices') || '[]').map(normalizeInvoice));
+      const fallbackCaris = JSON.parse(localStorage.getItem('caris') || '[]');
+      const fallbackStocks = JSON.parse(localStorage.getItem('stocks') || '[]');
+      const fallbackKasa = JSON.parse(localStorage.getItem('kasa') || '{"transactions":[],"balance":0}');
+      const fallbackInvoices = JSON.parse(localStorage.getItem('invoices') || '[]').map(normalizeInvoice);
+      const fallbackTransactions = JSON.parse(localStorage.getItem('transactions') || '[]');
+
+      setCaris(sortCarisByCode(computeCariBalances(fallbackCaris, fallbackInvoices, fallbackTransactions)));
+      setStocks(computeStockQuantities(fallbackStocks, fallbackInvoices));
+      setKasaData(fallbackKasa);
+      setInvoices(fallbackInvoices);
       setAllUsers(JSON.parse(localStorage.getItem('users') || '[]'));
       setSettings(JSON.parse(localStorage.getItem('settings') || '{}'));
-      setTransactions(JSON.parse(localStorage.getItem('transactions') || '[]'));
+      setTransactions(fallbackTransactions);
     }
   };
 
@@ -1993,10 +2066,15 @@ export default function App() {
                     type="button"
                     onClick={async () => {
                       if (confirm('İşlem silinecek. Emin misiniz?')) {
-                        await API.deleteTransaction(editingTransaction.id);
-                        await fetchData();
-                        setSubView('menu');
-                        setEditingTransaction(null);
+                        try {
+                          await API.deleteTransaction(editingTransaction.id);
+                          await fetchData();
+                        } catch (err: any) {
+                          alert('Silme hatası: ' + (err?.message || 'Bilinmeyen hata'));
+                        } finally {
+                          setEditingTransaction(null);
+                          setSubView('movements');
+                        }
                       }
                     }}
                     className="aspect-square flex items-center justify-center bg-red-500 text-white rounded-2xl shadow-lg border-b-4 border-red-800 hover:bg-red-600 transition-colors px-4"
@@ -2158,6 +2236,7 @@ export default function App() {
                     filteredInvoices.forEach(inv => {
                       const faturaTutari = inv.total_amount || 0;
                       const cari = resolveCariFromEntry(inv);
+                      const invoiceLedgerType = getCariInvoiceLedgerType(cari?.type, inv.type);
                       allItems.push({
                         id: 'inv-' + inv.id,
                         date: inv.date,
@@ -2167,14 +2246,14 @@ export default function App() {
                         cari_code: cari?.code || '',
                         rowType: inv.type === 'Alış' ? 'Alış' : 'Satış',
                         islemTuru: inv.type,
-                        borcTutar: inv.type === 'Alış' ? faturaTutari : 0,
-                        alacakTutar: inv.type === 'Satış' ? faturaTutari : 0,
+                        borcTutar: invoiceLedgerType === 'Borç' ? faturaTutari : 0,
+                        alacakTutar: invoiceLedgerType === 'Alacak' ? faturaTutari : 0,
                         isFatura: true
                       });
 
                       const lastItem = allItems[allItems.length - 1];
-                      lastItem.borcTutar = inv.type === 'Alış' ? faturaTutari : 0;
-                      lastItem.alacakTutar = inv.type === 'Satış' ? faturaTutari : 0;
+                      lastItem.borcTutar = invoiceLedgerType === 'Borç' ? faturaTutari : 0;
+                      lastItem.alacakTutar = invoiceLedgerType === 'Alacak' ? faturaTutari : 0;
                     });
 
                     // İlemleri (Nakit, Havale vb.) ekle
@@ -2677,7 +2756,7 @@ export default function App() {
                         </div>
                         <div className="space-y-0.5">
                           <label className="block text-[10px] font-semibold text-slate-700 uppercase">{'Satış'}</label>
-                          <input name="sale_price" type="number" step="0.001" className="input-field text-[11px] py-1.5 font-semibold text-indigo-600" defaultValue={editingStok?.sale_price ? Number(editingStok.sale_price).toFixed(3) : ''} />
+                          <input name="sale_price" type="number" step="0.001" className="input-field text-[11px] py-1.5 font-semibold text-indigo-600" defaultValue={editingStok?.sale_price ? String(Number(editingStok.sale_price)) : ''} />
                         </div>
                       </div>
 
@@ -3923,7 +4002,7 @@ export default function App() {
                         id="modal_qty"
                         type="number"
                         className="input-field py-3"
-                        placeholder="0.00"
+                        placeholder=""
                         min="0.01"
                         step="0.01"
                         autoFocus
