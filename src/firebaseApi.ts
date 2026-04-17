@@ -803,27 +803,36 @@ export const updateSettings = async (settings: any) => {
   return { success: true };
 };
 
-// Kullanıcıları getir (Gvenlik filtreli)
+// Kullanıcıları getir
 export const getUsers = async () => {
   const uid = getCurrentUserId();
   const usersRef = collection(db, COLLECTIONS.USERS);
 
+  // Önce kendi kaydımızı uid ile bul
   const qMe = query(usersRef, where('uid', '==', uid));
   const meSnap = await getDocs(qMe);
 
-  if (meSnap.empty) return [];
+  if (meSnap.empty) {
+    // uid field yoksa doc ID ile dene
+    const meByDoc = await getDoc(doc(usersRef, uid));
+    if (!meByDoc.exists()) return [];
+    const me = meByDoc.data();
+    if (me.email === 'selahattin50@gmail.com') {
+      const snapshot = await getDocs(usersRef);
+      return snapshot.docs.map(d => ({ id: d.id, username: d.data().username, email: d.data().email, isBanned: !!d.data().isBanned }));
+    }
+    return [{ id: meByDoc.id, username: me.username, email: me.email, isBanned: !!me.isBanned }];
+  }
+
   const me = meSnap.docs[0].data();
 
-  const isSuperAdmin = me.email === 'selahattin50@gmail.com';
-
-  if (isSuperAdmin) {
+  if (me.email === 'selahattin50@gmail.com') {
     const snapshot = await getDocs(usersRef);
-    return snapshot.docs.map(doc => ({
-      id: doc.id,
-      username: doc.data().username,
-      email: doc.data().email,
-      role: doc.data().role,
-      isBanned: !!doc.data().isBanned
+    return snapshot.docs.map(d => ({
+      id: d.id,
+      username: d.data().username,
+      email: d.data().email,
+      isBanned: !!d.data().isBanned
     }));
   }
 
@@ -831,7 +840,6 @@ export const getUsers = async () => {
     id: meSnap.docs[0].id,
     username: me.username,
     email: me.email,
-    role: me.role,
     isBanned: !!me.isBanned
   }];
 };
@@ -915,22 +923,22 @@ export const migrateUserData = async (fromEmail: string, toEmail: string) => {
   }
 };
 
-// Sistem genelindeki tüm verileri kontrol et (Hangi kullanıc1da ne kadar veri var?)
+// Sistem genelindeki tüm verileri kontrol et - sadece mevcut kullanıcının verileri
 export const scanAllFirestoreData = async () => {
+  const uid = getCurrentUserId();
   const collectionsList = [COLLECTIONS.CARIS, COLLECTIONS.STOCKS, COLLECTIONS.INVOICES, COLLECTIONS.KASA, COLLECTIONS.TRANSACTIONS];
   const results: any = {};
 
   for (const collName of collectionsList) {
-    const snap = await getDocs(collection(db, collName));
-    results[collName] = {
-      total: snap.size,
-      users: {} as any
-    };
-
-    snap.docs.forEach(d => {
-      const uId = d.data().userId || 'Bilinmiyor';
-      results[collName].users[uId] = (results[collName].users[uId] || 0) + 1;
-    });
+    try {
+      const snap = await getDocs(query(collection(db, collName), where('userId', '==', uid)));
+      results[collName] = {
+        total: snap.size,
+        users: { [uid]: snap.size }
+      };
+    } catch {
+      results[collName] = { total: 0, users: {} };
+    }
   }
 
   return results;

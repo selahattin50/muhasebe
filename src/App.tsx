@@ -48,7 +48,8 @@ import {
   Wallet2,
   Package2,
   Eye,
-  EyeOff
+  EyeOff,
+  Power
 } from 'lucide-react';
 // motion/react removed - causes Android WebView crash
 const AnimatePresence = ({ children }: { children: React.ReactNode; mode?: string }) => <>{children}</>;
@@ -1643,10 +1644,10 @@ export default function App() {
 
   const renderDashboard = () => {
     const dashboardCards = [
-      { id: 'cari', label: 'Cari Hesaplar', desc: 'Müşteri ve tedarikçi yönetimi', icon: Users, color: 'bg-indigo-500', light: 'bg-indigo-50', border: 'border-indigo-100', text: 'text-indigo-700', action: () => { setView('cari'); setSubView('menu'); } },
-      { id: 'fatura', label: 'Fatura Yönetimi', desc: 'Alış ve satış faturaları', icon: FileText, color: 'bg-purple-500', light: 'bg-purple-50', border: 'border-purple-100', text: 'text-purple-700', action: () => { setView('fatura'); setSubView('create_selection'); } },
-      { id: 'stok', label: 'Stok Yönetimi', desc: 'Ürün ve envanter takibi', icon: Package, color: 'bg-orange-500', light: 'bg-orange-50', border: 'border-orange-100', text: 'text-orange-700', action: () => { setView('stok'); setSubView('selection'); } },
-      { id: 'kasa', label: 'Kasa Yönetimi', desc: 'Nakit akışı ve bakiye takibi', icon: Wallet, color: 'bg-emerald-500', light: 'bg-emerald-50', border: 'border-emerald-100', text: 'text-emerald-700', action: () => { setView('kasa'); setSubView('list'); } },
+      { id: 'cari', label: 'Cari Hesaplar', desc: 'Müşteri ve tedarikçi yönetimi', icon: Users, color: 'bg-indigo-500', light: 'bg-indigo-50', border: 'border-indigo-200', bottom: 'border-b-indigo-400', text: 'text-indigo-700', action: () => { setView('cari'); setSubView('menu'); } },
+      { id: 'fatura', label: 'Fatura Yönetimi', desc: 'Alış ve satış faturaları', icon: FileText, color: 'bg-purple-500', light: 'bg-purple-50', border: 'border-purple-200', bottom: 'border-b-purple-400', text: 'text-purple-700', action: () => { setView('fatura'); setSubView('create_selection'); } },
+      { id: 'stok', label: 'Stok Yönetimi', desc: 'Ürün ve envanter takibi', icon: Package, color: 'bg-orange-500', light: 'bg-orange-50', border: 'border-orange-200', bottom: 'border-b-orange-400', text: 'text-orange-700', action: () => { setView('stok'); setSubView('selection'); } },
+      { id: 'kasa', label: 'Kasa Yönetimi', desc: 'Nakit akışı ve bakiye takibi', icon: Wallet, color: 'bg-emerald-500', light: 'bg-emerald-50', border: 'border-emerald-200', bottom: 'border-b-emerald-400', text: 'text-emerald-700', action: () => { setView('kasa'); setSubView('list'); } },
     ].filter(item => hasPermission(item.id));
 
     const dashboardQuickActions = [
@@ -1673,7 +1674,33 @@ export default function App() {
     return (
       <div className="flex flex-col h-full bg-blue-50/50 overflow-hidden">
         <div className="w-full max-w-2xl mx-auto px-4 py-4 flex flex-col gap-4 relative">
-          <div className="pt-2"></div>
+          {/* Brand Header */}
+          <div className="flex items-center justify-between pt-2 pb-0">
+            <div className="flex items-center gap-2.5">
+              <div className="p-2 bg-indigo-600 rounded-xl text-white shadow-lg shadow-indigo-200">
+                <LayoutDashboard size={22} />
+              </div>
+              <h1 className="text-xl font-black text-slate-900 uppercase tracking-tight">
+                Ön Muhasebe
+              </h1>
+            </div>
+            <button
+              onClick={() => setUser(null)}
+              className="p-2 rounded-xl text-red-400 hover:text-red-600 hover:bg-red-50 transition-all active:scale-95"
+            >
+              <Power size={24} />
+            </button>
+          </div>
+
+          {/* Hoş Geldiniz */}
+          <div className="bg-gradient-to-r from-indigo-500 to-blue-500 rounded-[1.8rem] border-2 border-b-4 border-indigo-300 border-b-indigo-700 shadow-md p-4 text-center">
+            <h2 className="text-2xl font-black text-white uppercase tracking-tight">Hoş Geldiniz</h2>
+            <p className="text-sm text-white/80 mt-1 font-semibold">
+              {new Date().toLocaleDateString('tr-TR', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+            </p>
+          </div>
+
+          <div className="pt-0"></div>
           <div className="flex-1 overflow-y-auto custom-scrollbar pt-1 space-y-2.5">
           {dashboardCards.map((item, i) => (
             <motion.div
@@ -1681,14 +1708,14 @@ export default function App() {
               whileHover={{ x: 8 }}
               whileTap={{ scale: 0.99 }}
               onClick={item.action}
-              className={`p-3.5 rounded-[1.8rem] shadow-sm border ${item.light} ${item.border} cursor-pointer group hover:shadow-lg transition-all`}
+              className={`p-3.5 rounded-[1.8rem] border-2 border-b-[6px] ${item.light} ${item.border} ${item.bottom} cursor-pointer group transition-all shadow-lg active:shadow-sm active:translate-y-1 active:border-b-2`}
             >
               <div className="flex items-center gap-4">
                 <div className={`${item.color} p-3 rounded-xl text-white shadow-md`}>
                   <item.icon size={24} />
                 </div>
                 <div className="flex-1">
-                  <h3 className={`text-lg font-black ${item.text} tracking-tight group-hover:scale-105 transition-transform origin-left uppercase`}>{item.label}</h3>
+                  <h3 className={`text-lg font-black ${item.text} tracking-tight uppercase`}>{item.label}</h3>
                   <p className={`${item.text} opacity-70 text-[10px] font-bold uppercase tracking-wider mt-0.5`}>{item.desc}</p>
                 </div>
                 <ChevronRight className={`${item.text} opacity-30 group-hover:translate-x-1 group-hover:opacity-100 transition-all`} size={20} />
@@ -1704,7 +1731,7 @@ export default function App() {
                 <button
                   key={item.id}
                   onClick={item.action}
-                  className="rounded-[1.5rem] border border-slate-200 bg-white/90 p-3 text-left shadow-sm hover:shadow-lg transition-all group"
+                  className="rounded-[1.5rem] border-2 border-b-[6px] border-slate-200 border-b-slate-400 bg-white/90 py-4 px-3 text-left transition-all active:translate-y-1 active:border-b-2 active:shadow-sm shadow-lg"
                 >
                   <div className="flex items-center gap-3">
                     <div className={`h-11 w-11 rounded-xl bg-gradient-to-br ${item.accent} text-white flex items-center justify-center shadow-lg shrink-0`}>
@@ -1712,9 +1739,8 @@ export default function App() {
                     </div>
                     <div className="min-w-0 flex-1">
                       <div className="text-sm sm:text-base font-black text-slate-900 uppercase tracking-tight leading-tight">{item.label}</div>
-                      <div className="text-[10px] sm:text-[11px] font-semibold text-slate-500 uppercase tracking-wide mt-1 leading-tight">{item.desc}</div>
                     </div>
-                    <ChevronRight className="text-slate-300 group-hover:text-slate-500 group-hover:translate-x-1 transition-all" size={18} />
+                    <ChevronRight className="text-slate-300 transition-all" size={18} />
                   </div>
                 </button>
               ))}
@@ -1722,12 +1748,6 @@ export default function App() {
           </div>
         )}
 
-        <button
-          onClick={() => setUser(null)}
-          className="flex items-center justify-center gap-2 text-slate-400 hover:text-red-500 transition-colors text-sm font-medium"
-        >
-          <ArrowRight size={16} /> Güvenli Çıkış Yap
-        </button>
         </div>
       </div>
     );
@@ -1806,7 +1826,7 @@ export default function App() {
           </div>
 
           <div className="flex-1 overflow-y-auto px-1 pb-20 sm:pb-4 custom-scrollbar">
-            <form className="bg-white rounded-2xl shadow-sm border border-slate-200 p-3 space-y-2" onSubmit={async (e) => {
+            <form className="panel-3d p-3 space-y-2" onSubmit={async (e) => {
               e.preventDefault();
               const formData = new FormData(e.currentTarget);
               const payload = Object.fromEntries(formData);
@@ -1974,7 +1994,7 @@ export default function App() {
             }} className="space-y-2">
 
               {/* Cari Seçimi */}
-              <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+              <div className="panel-3d overflow-hidden">
                 <div className="bg-slate-700 px-3 py-0.5">
                   <span className="text-[9px] font-bold text-white tracking-wide uppercase">Cari Seçiniz</span>
                 </div>
@@ -2031,7 +2051,7 @@ export default function App() {
               </div>
 
               {/* İşlem Detayları */}
-              <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+              <div className="panel-3d overflow-hidden">
                 <div className="bg-slate-700 px-3 py-0.5">
                   <span className="text-[9px] font-bold text-white tracking-wide uppercase">İşlem Detayları</span>
                 </div>
@@ -2065,7 +2085,7 @@ export default function App() {
               </div>
 
               {/* Tutar Girişi */}
-              <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden p-2">
+              <div className="panel-3d overflow-hidden p-2">
                 <div className="grid grid-cols-2 gap-2">
                   <div className="space-y-0.5">
                     <label className="block text-[9px] font-bold text-red-500 uppercase tracking-tight ml-1">ÖDEME / GİDER</label>
@@ -2109,7 +2129,7 @@ export default function App() {
               </div>
 
               {/* Açıklama */}
-              <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-2 grid grid-cols-2 gap-2">
+              <div className="panel-3d p-2 grid grid-cols-2 gap-2">
                 <div className="col-span-2">
                   <label className="block text-[9px] font-bold text-slate-500 uppercase mb-0.5 ml-1 tracking-tight">Açıklama</label>
                   <input name="description" type="text" className="input-field text-sm py-1.5" placeholder="İşlem açıklaması giriniz..." defaultValue={editingTransaction?.description || ""} />
@@ -2286,7 +2306,7 @@ export default function App() {
           </div>
           <div className="border-b-2 border-slate-300 my-2 mx-1"></div>
 
-          <div className="bg-blue-50/50 rounded-2xl shadow-sm border border-slate-200 flex-1 overflow-y-auto custom-scrollbar mb-4">
+          <div className="panel-3d bg-blue-50/50 flex-1 overflow-y-auto custom-scrollbar mb-4">
             <div className="w-full overflow-x-hidden">
               <table className="w-full text-left text-xs border-collapse min-w-[320px]">
                 <thead>
@@ -2533,7 +2553,7 @@ export default function App() {
                 <button
                   key={item.id}
                   onClick={() => setSubView(item.id as CariSubView)}
-                  className={`flex items-center gap-3 p-3 ${colors.bg} ${colors.hover} rounded-xl border-2 ${colors.border} transition-all group`}
+                  className={`flex items-center gap-3 p-3 ${colors.bg} ${colors.hover} rounded-xl border-2 border-b-[5px] ${colors.border} transition-all active:translate-y-0.5 active:border-b-2 shadow-md`}
                 >
                   <div className={`p-2 ${colors.icon} rounded-lg shadow-sm text-white`}>
                     <item.icon size={20} />
@@ -2647,7 +2667,7 @@ export default function App() {
           <div className="grid gap-3">
             <button
               onClick={() => { setSubView('add'); setEditingStok(null); }}
-              className="flex items-center gap-3 p-3 bg-emerald-50 hover:bg-emerald-100 rounded-xl border-2 border-emerald-200 hover:border-emerald-300 transition-all group"
+              className="flex items-center gap-3 p-3 bg-emerald-50 hover:bg-emerald-100 rounded-xl border-2 border-b-[5px] border-emerald-200 border-b-emerald-400 transition-all shadow-md active:translate-y-0.5 active:border-b-2"
             >
               <div className="p-2 bg-emerald-500 rounded-lg shadow-sm text-white">
                 <Plus size={20} />
@@ -2660,7 +2680,7 @@ export default function App() {
 
             <button
               onClick={() => setSubView('list')}
-              className="flex items-center gap-3 p-3 bg-blue-50 hover:bg-blue-100 rounded-xl border-2 border-blue-200 hover:border-blue-300 transition-all group"
+              className="flex items-center gap-3 p-3 bg-blue-50 hover:bg-blue-100 rounded-xl border-2 border-b-[5px] border-blue-200 border-b-blue-400 transition-all shadow-md active:translate-y-0.5 active:border-b-2"
             >
               <div className="p-2 bg-blue-500 rounded-lg shadow-sm text-white">
                 <FileText size={20} />
@@ -2673,7 +2693,7 @@ export default function App() {
 
             <button
               onClick={() => setSubView('inventory')}
-              className="flex items-center gap-3 p-3 bg-amber-50 hover:bg-amber-100 rounded-xl border-2 border-amber-200 hover:border-amber-300 transition-all group"
+              className="flex items-center gap-3 p-3 bg-amber-50 hover:bg-amber-100 rounded-xl border-2 border-b-[5px] border-amber-200 border-b-amber-400 transition-all shadow-md active:translate-y-0.5 active:border-b-2"
             >
               <div className="p-2 bg-amber-500 rounded-lg shadow-sm text-white">
                 <BarChart3 size={20} />
@@ -2983,7 +3003,7 @@ export default function App() {
                   setIsEditingInvoice(false);
                   setSelectedInvoice(null);
                 }}
-                className="flex items-center gap-3 p-3 bg-emerald-50 hover:bg-emerald-100 rounded-xl border-2 border-emerald-200 hover:border-emerald-300 transition-all group"
+                className="flex items-center gap-3 p-3 bg-emerald-50 hover:bg-emerald-100 rounded-xl border-2 border-b-[5px] border-emerald-200 border-b-emerald-400 transition-all shadow-md active:translate-y-0.5 active:border-b-2"
               >
                 <div className="p-2 bg-emerald-500 rounded-lg shadow-sm text-white">
                   <ArrowDownLeft size={20} />
@@ -3005,7 +3025,7 @@ export default function App() {
                   setIsEditingInvoice(false);
                   setSelectedInvoice(null);
                 }}
-                className="flex items-center gap-3 p-3 bg-blue-50 hover:bg-blue-100 rounded-xl border-2 border-blue-200 hover:border-blue-300 transition-all group"
+                className="flex items-center gap-3 p-3 bg-blue-50 hover:bg-blue-100 rounded-xl border-2 border-b-[5px] border-blue-200 border-b-blue-400 transition-all shadow-md active:translate-y-0.5 active:border-b-2"
               >
                 <div className="p-2 bg-blue-500 rounded-lg shadow-sm text-white">
                   <ArrowUpRight size={20} />
@@ -3020,7 +3040,7 @@ export default function App() {
                 whileHover={{ x: 8 }}
                 whileTap={{ scale: 0.98 }}
                 onClick={() => setSubView('list')}
-                className="flex items-center gap-3 p-3 bg-purple-50 hover:bg-purple-100 rounded-xl border-2 border-purple-200 hover:border-purple-300 transition-all group"
+                className="flex items-center gap-3 p-3 bg-purple-50 hover:bg-purple-100 rounded-xl border-2 border-b-[5px] border-purple-200 border-b-purple-400 transition-all shadow-md active:translate-y-0.5 active:border-b-2"
               >
                 <div className="p-2 bg-purple-500 rounded-lg shadow-sm text-white">
                   <History size={20} />
@@ -3299,7 +3319,7 @@ export default function App() {
               )}
             </div>
 
-            <div className="bg-white rounded-2xl border border-slate-200 p-2 mb-1 shadow-sm">
+            <div className="panel-3d p-2 mb-1">
               <div className="grid grid-cols-2 gap-x-4 gap-y-1 mb-2">
                 <div className="flex justify-between text-[11px] font-bold text-slate-500 uppercase"><span className="opacity-60">Toplam:</span><span className="text-slate-800">₺{fmt(calcGross())}</span></div>
                 <div className="flex justify-between text-[11px] font-bold text-red-500 uppercase"><span className="opacity-60">İskonto:</span><span>₺{fmt(calcDisc())}</span></div>
@@ -3530,14 +3550,8 @@ export default function App() {
           </div>
         </div>
         <div className="flex-1 overflow-y-auto px-2 custom-scrollbar space-y-6 pt-2 pb-24">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-6">
-            <div className="flex flex-col gap-1">
-              <p className="text-sm text-slate-500">Ayarlar, kullanıcı işlemleri ve veri araçları bu alanda toplandı.</p>
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">Sistem Durumu:</span>
-              <span className="px-2 py-1 bg-emerald-100 text-emerald-700 text-[10px] font-black rounded-lg uppercase">Çevrimiçi</span>
-            </div>
+          <div className="flex justify-end mb-6">
+            <span className="px-2 py-1 bg-emerald-100 text-emerald-700 text-[10px] font-black rounded-lg uppercase">Çevrimiçi</span>
           </div>
 
         {isSuperAdmin && (
@@ -3614,68 +3628,13 @@ export default function App() {
                 )}
               </button>
 
-              <div className="mt-4 rounded-2xl border border-emerald-100 bg-slate-950/5 px-4 py-4 text-xs sm:text-sm font-mono text-slate-700 whitespace-pre-line min-h-[110px]">
-                {scanReport || 'Henüz tarama yapılmadı. Sonuçlar burada görünecek.'}
-              </div>
+              {scanReport && (
+                <div className="mt-4 rounded-2xl border border-emerald-100 bg-slate-950/5 px-4 py-4 text-xs sm:text-sm font-mono text-slate-700 whitespace-pre-line">
+                  {scanReport}
+                </div>
+              )}
             </div>
 
-            <div className="bg-amber-50 border border-amber-100 rounded-[2rem] p-6 shadow-sm">
-              <h3 className="text-lg font-bold text-amber-900 flex items-center gap-2 mb-2">
-                <Download size={20} /> Telefon Verilerini Yükle
-              </h3>
-              <p className="text-sm text-amber-700 mb-4">Cihazdaki yerel kayıtları bulut hesabına toplu olarak gönderir.</p>
-              <button
-                onClick={handleUploadLocalData}
-                disabled={uploadingLocalData}
-                className="w-full sm:w-auto bg-amber-600 hover:bg-amber-700 text-white font-bold px-6 py-3 rounded-xl transition-all flex items-center justify-center gap-2 disabled:opacity-50"
-              >
-                {uploadingLocalData ? (
-                  <>
-                    <Loader2 size={18} className="animate-spin" />
-                    Yükleniyor...
-                  </>
-                ) : (
-                  'Telefon Verilerini Yükle'
-                )}
-              </button>
-            </div>
-
-            <div className="bg-rose-50 border border-rose-100 rounded-[2rem] p-6 shadow-sm">
-              <h3 className="text-lg font-bold text-rose-900 flex items-center gap-2 mb-2">
-                <History size={20} /> Bakiyeleri Yeniden Hesapla
-              </h3>
-              <p className="text-sm text-rose-700 mb-4">Tüm cari bakiyelerini hareketlerden ve faturalardan sıfırdan hesaplar. Hesaplama hatalarını düzeltmek için kullanılır.</p>
-              <button
-                onClick={async () => {
-                  if (!window.confirm('Tüm cari bakiyeleri hareketlere ve faturalara göre yeniden hesaplansın mı? Bu işlem geri alınamaz.')) return;
-                  setRecalculating(true);
-                  try {
-                    const res = await API.recalculateCaris();
-                    if (res.success) {
-                      alert('Tüm bakiyeler başarıyla güncellendi.');
-                      fetchData();
-                    } else {
-                      alert(('message' in res ? res.message : '') || 'Bir hata oluştu.');
-                    }
-                  } catch (err: any) {
-                    alert(`Hata: ${err.message}`);
-                  } finally {
-                    setRecalculating(false);
-                  }
-                }}
-                disabled={recalculating}
-                className="w-full sm:w-auto bg-rose-600 hover:bg-rose-700 text-white font-bold px-6 py-3 rounded-xl transition-all flex items-center justify-center gap-2 disabled:opacity-50"
-              >
-                {recalculating ? (
-                  <>
-                    <Loader2 size={18} className="animate-spin" />
-                    Hesaplanıyor...
-                  </>
-                ) : (
-                  'Bakiyeleri Güncelle'
-                )}
-              </button>
-            </div>
           </div>
         )}
 
@@ -3867,33 +3826,6 @@ export default function App() {
 
       {/* Main Content */}
       <main className={`flex-1 min-w-0 transition-all duration-300 p-0 ${view === 'fatura' ? 'pt-0 lg:pt-4' : 'pt-0 lg:pt-8'} h-[100dvh] overflow-hidden ${isSidebarCollapsed ? 'lg:ml-20' : 'lg:ml-64'}`}>
-        {view === 'dashboard' && (
-          <div className="px-4">
-            {/* Brand Header */}
-            <div className="flex flex-col items-center justify-center pt-4 pb-2">
-              <div className="flex items-center gap-2.5">
-                <div className="p-2 bg-indigo-600 rounded-xl text-white shadow-lg shadow-indigo-200">
-                  <LayoutDashboard size={22} />
-                </div>
-                <h1 className="text-xl font-black text-slate-900 uppercase tracking-tight">
-                  Ön Muhasebe
-                </h1>
-              </div>
-            </div>
-
-            <header className={`flex justify-center mb-4`}>
-              <div className="bg-gradient-to-r from-indigo-500 to-blue-500 rounded-2xl shadow-lg p-4 text-center">
-                <h2 className="text-2xl font-black text-white uppercase tracking-tight">
-                  Hoş Geldiniz
-                </h2>
-                <p className="text-sm text-white/80 mt-1 font-semibold">
-                  {new Date().toLocaleDateString('tr-TR', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
-                </p>
-              </div>
-            </header>
-          </div>
-        )}
-
         <AnimatePresence mode="wait">
           <motion.div
             key={view + subView}
@@ -4259,4 +4191,7 @@ export default function App() {
     </div>
   );
 }
+
+
+
 
