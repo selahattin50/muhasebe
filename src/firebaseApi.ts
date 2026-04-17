@@ -37,6 +37,12 @@ const COLLECTIONS = {
   SETTINGS: 'settings'
 };
 
+const isBorc = (type: string) => {
+  const s = String(type || '').toLowerCase().trim();
+  return s === 'borc' || s === 'borç' || s.startsWith('bor');
+};
+const isAlacak = (type: string) => String(type || '').toLowerCase().trim() === 'alacak';
+
 const isNativeApp = () => {
   const cap = (window as any).Capacitor;
   return window.location.protocol === 'capacitor:' ||
@@ -44,22 +50,13 @@ const isNativeApp = () => {
     !!cap?.isNativePlatform?.();
 };
 
-const buildDefaultUserDoc = (uid: string, email: string, role?: string) => ({
+const buildDefaultUserDoc = (uid: string, email: string) => ({
   username: email.split('@')[0],
   email,
-  role: normalizeRole(role || (email === 'selahattin50@gmail.com' ? 'YÃ¶netici' : 'Muhasebeci')),
   uid,
   createdAt: Timestamp.now()
 });
 
-const normalizeRole = (role: string | null | undefined) => {
-  const value = String(role || '').trim();
-  if (!value) return 'Muhasebeci';
-  if (value === 'Yönetici') return 'Yönetici';
-  if (value === 'Muhasebeci') return 'Muhasebeci';
-  if (value === 'Kasiyer') return 'Kasiyer';
-  return value;
-};
 
 // Kullanıcı İşlemleri
 export const firebaseLogin = async (emailOrUsername: string, password: string, rememberMe: boolean = true) => {
@@ -116,19 +113,18 @@ export const firebaseLogin = async (emailOrUsername: string, password: string, r
         await authSignOut(auth);
         return { success: false, message: 'Bu hesap banlanmış. Yönetici ile görüşün.' };
       }
-      console.log('Giriş tamamlandı:', userData.role);
+      console.log('Giriş tamamlandı');
       return {
         success: true,
         user: {
           id: uid,
           username: userData.username || email.split('@')[0],
           email: userData.email || email,
-          role: normalizeRole(userData.role)
         }
       };
     }
 
-    // uid ile bulunamadıysa email ile dene (eski kayıtlar için)
+    // uid ile bulunamadıysa uid field ile dene (eski kayıtlar için)
     try {
       const usersRef = collection(db, COLLECTIONS.USERS);
       const q = query(usersRef, where('uid', '==', uid));
@@ -145,7 +141,6 @@ export const firebaseLogin = async (emailOrUsername: string, password: string, r
             id: snapshot.docs[0].id,
             username: userData.username || email.split('@')[0],
             email: userData.email || email,
-            role: normalizeRole(userData.role)
           }
         };
       }
@@ -153,15 +148,12 @@ export const firebaseLogin = async (emailOrUsername: string, password: string, r
 
     console.warn('Firestore belgesi eksik, otomatik oluşturuluyor...');
     const newUsername = email.split('@')[0];
-    const userRole = email === 'selahattin50@gmail.com' ? 'Yönetici' : 'Muhasebeci';
     const newUserDoc = {
       username: newUsername,
       email: email,
-      role: normalizeRole(userRole),
       uid,
       createdAt: Timestamp.now(),
     };
-    // uid'yi doküman ID'si olarak kullan
     await setDoc(doc(db, COLLECTIONS.USERS, uid), newUserDoc);
 
     return {
@@ -170,7 +162,6 @@ export const firebaseLogin = async (emailOrUsername: string, password: string, r
         id: uid,
         username: newUsername,
         email: email,
-        role: normalizeRole(userRole)
       }
     };
   } catch (error: any) {
@@ -193,12 +184,11 @@ export const firebaseRegister = async (email: string, password: string, fullName
       fullName,
       phone,
       email,
-      role,
       uid: userId,
       createdAt: Timestamp.now()
     });
 
-    return { success: true, user: { id: userId, username, fullName, email, role } };
+    return { success: true, user: { id: userId, username, fullName, email } };
   } catch (error: any) {
     console.error('Kayıt Hatası:', error);
     if (error.code === 'auth/email-already-in-use') {
@@ -597,7 +587,7 @@ export const addTransaction = async (data: any) => {
       if (data.cari_id) {
         const cariRef = doc(db, COLLECTIONS.CARIS, String(data.cari_id));
         // TAHSİLAT (Alacak) bakiyeyi azaltır (-), ÖDEME (Borç) bakiyeyi artırır (+)
-        const balanceChange = data.type === 'Alacak' ? -data.amount : data.amount;
+        const balanceChange = isAlacak(data.type) ? -data.amount : data.amount;
 
         transaction.update(cariRef, {
           balance: increment(balanceChange),
@@ -607,7 +597,7 @@ export const addTransaction = async (data: any) => {
 
       // Kasa kaydi
       const kasaRef = doc(collection(db, COLLECTIONS.KASA));
-      const kasaType = data.type === 'Alacak' ? 'Giriş' : 'Çıkış';
+      const kasaType = isAlacak(data.type) ? 'Giriş' : 'Çıkış';
 
       transaction.set(kasaRef, {
         type: kasaType,
@@ -645,7 +635,7 @@ export const deleteTransaction = async (id: string) => {
         const cariRef = doc(db, COLLECTIONS.CARIS, String(data.cari_id));
         // Alacak girilmişti (-), silerken artırıyoruz (+).
         // Borç girilmişti (+), silerken azaltıyoruz (-).
-        const balanceCorrection = data.type === 'Alacak' ? data.amount : -data.amount;
+        const balanceCorrection = isAlacak(data.type) ? data.amount : -data.amount;
         transaction.update(cariRef, {
           balance: increment(balanceCorrection),
           updatedAt: Timestamp.now()
@@ -694,14 +684,14 @@ export const updateTransaction = async (id: string, newData: any) => {
       if (oldData.cari_id) {
         const oldCariRef = doc(db, COLLECTIONS.CARIS, String(oldData.cari_id));
         // Alacak girilmişti (-), geri alırken + yapıyoruz. Borç + girilmişti, - yapıyoruz.
-        const oldCorrection = oldData.type === 'Alacak' ? oldData.amount : -oldData.amount;
+        const oldCorrection = isAlacak(oldData.type) ? oldData.amount : -oldData.amount;
         transaction.update(oldCariRef, { balance: increment(oldCorrection) });
       }
 
       // 2. Yeni cari bakiye etkisini uygula
       if (newData.cari_id) {
         const newCariRef = doc(db, COLLECTIONS.CARIS, String(newData.cari_id));
-        const newApply = newData.type === 'Alacak' ? -newData.amount : newData.amount;
+        const newApply = isAlacak(newData.type) ? -newData.amount : newData.amount;
         transaction.update(newCariRef, { balance: increment(newApply) });
       }
 
@@ -715,7 +705,7 @@ export const updateTransaction = async (id: string, newData: any) => {
       const targetKasaDoc = kasaSnapshot.docs.find(d => d.data().description.includes(oldData.description) || d.data().description.includes('Cari İşlem'));
 
       if (targetKasaDoc) {
-        const kasaType = newData.type === 'Alacak' ? 'Giriş' : 'Çıkış';
+        const kasaType = isAlacak(newData.type) ? 'Giriş' : 'Çıkış';
         transaction.update(targetKasaDoc.ref, {
           type: kasaType,
           amount: newData.amount,

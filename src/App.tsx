@@ -1,4 +1,4 @@
-/**
+﻿/**
  * @license
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -46,7 +46,9 @@ import {
   FilePlus,
   Users2,
   Wallet2,
-  Package2
+  Package2,
+  Eye,
+  EyeOff
 } from 'lucide-react';
 // motion/react removed - causes Android WebView crash
 const AnimatePresence = ({ children }: { children: React.ReactNode; mode?: string }) => <>{children}</>;
@@ -66,7 +68,6 @@ interface User {
   id: string | number;
   username: string;
   email: string;
-  role: 'Yönetici' | 'Muhasebeci' | 'Kasiyer';
 }
 
 interface Cari {
@@ -126,28 +127,7 @@ interface Invoice {
   }>;
 }
 
-const normalizeRoleLabel = (role: string | null | undefined) => {
-  const value = String(role || '').trim();
-  if (
-    value === 'Yönetici' ||
-    value === 'Yönetici' ||
-    value === 'Y�netici' ||
-    value === 'Yönetici'
-  ) {
-    return 'Yönetici';
-  }
-  if (value === 'Muhasebeci') return 'Muhasebeci';
-  if (value === 'Kasiyer') return 'Kasiyer';
-  return value;
-};
-
-const normalizeUser = (user: User | null) => {
-  if (!user) return null;
-  return {
-    ...user,
-    role: normalizeRoleLabel(user.role) as User['role'],
-  };
-};
+const normalizeUser = (user: User | null) => { if (!user) return null; return { ...user }; };
 
 // --- Helper Functions ---
 
@@ -322,11 +302,12 @@ const normalizeInvoiceType = (value: string | null | undefined, invoiceNo?: stri
   return 'Satış';
 };
 
-const normalizeCariTransactionType = (value: string | null | undefined) => {
-  const fixed = fixTR(value).toLowerCase();
-  if (fixed.includes('borç') || fixed.includes('borc')) return 'Borç';
-  if (fixed.includes('alacak')) return 'Alacak';
-  return fixTR(value);
+const normalizeCariTransactionType = (value: string | null | undefined): 'Borç' | 'Alacak' | '' => {
+  if (!value) return '';
+  const s = String(value).toLowerCase().trim();
+  if (s === 'borc' || s === 'borç' || s.startsWith('bor')) return 'Borç';
+  if (s === 'alacak') return 'Alacak';
+  return '';
 };
 
 const normalizeCariRole = (value: string | null | undefined) => {
@@ -820,6 +801,8 @@ const Login = ({ onLogin }: { onLogin: (user: User) => void }) => {
   const [resetMessage, setResetMessage] = useState('');
   const [loading, setLoading] = useState(false);
   const [serverStatus, setServerStatus] = useState<'checking' | 'online' | 'offline'>('checking');
+  const [showPassword, setShowPassword] = useState(false);
+  const [showPasswordConfirm, setShowPasswordConfirm] = useState(false);
 
   useEffect(() => {
     // Beni hat1rla kontrolï¿½
@@ -1024,27 +1007,37 @@ const Login = ({ onLogin }: { onLogin: (user: User) => void }) => {
                   <button type="button" onClick={handleResetPassword} className="text-[10px] font-bold text-indigo-500 hover:text-indigo-600 transition-colors uppercase tracking-tight">Şifremi Unuttum?</button>
                 )}
               </div>
-              <input
-                type="password"
-                className="w-full bg-blue-50/50 border-2 border-slate-100 rounded-[1rem] sm:rounded-[1.5rem] px-4 sm:px-6 py-2.5 sm:py-4 text-slate-800 placeholder-slate-300 focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all font-bold text-sm shadow-sm"
-                placeholder=""
-                value={password}
-                onChange={(e) => { setPassword(e.target.value); setError(''); }}
-                required
-              />
+              <div className="relative">
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  className="w-full bg-blue-50/50 border-2 border-slate-100 rounded-[1rem] sm:rounded-[1.5rem] px-4 sm:px-6 py-2.5 sm:py-4 pr-12 text-slate-800 placeholder-slate-300 focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all font-bold text-sm shadow-sm"
+                  placeholder=""
+                  value={password}
+                  onChange={(e) => { setPassword(e.target.value); setError(''); }}
+                  required
+                />
+                <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-indigo-500 transition-colors">
+                  {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                </button>
+              </div>
             </div>
 
             {isRegistering && (
               <div className="space-y-1">
                 <label className="block text-[9px] sm:text-[10px] font-black text-indigo-900/30 uppercase tracking-[0.2em] ml-2">Şifre Tekrar</label>
-                <input
-                  type="password"
-                  className="w-full bg-blue-50/50 border-2 border-slate-100 rounded-[1rem] sm:rounded-[1.5rem] px-4 sm:px-6 py-2.5 sm:py-4 text-slate-800 placeholder-slate-300 focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all font-bold text-sm shadow-sm"
-                  placeholder="********"
-                  value={passwordConfirm}
-                  onChange={(e) => { setPasswordConfirm(e.target.value); setError(''); }}
-                  required={isRegistering}
-                />
+                <div className="relative">
+                  <input
+                    type={showPasswordConfirm ? 'text' : 'password'}
+                    className="w-full bg-blue-50/50 border-2 border-slate-100 rounded-[1rem] sm:rounded-[1.5rem] px-4 sm:px-6 py-2.5 sm:py-4 pr-12 text-slate-800 placeholder-slate-300 focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all font-bold text-sm shadow-sm"
+                    placeholder=""
+                    value={passwordConfirm}
+                    onChange={(e) => { setPasswordConfirm(e.target.value); setError(''); }}
+                    required={isRegistering}
+                  />
+                  <button type="button" onClick={() => setShowPasswordConfirm(!showPasswordConfirm)} className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-indigo-500 transition-colors">
+                    {showPasswordConfirm ? <EyeOff size={18} /> : <Eye size={18} />}
+                  </button>
+                </div>
               </div>
             )}
 
@@ -1107,7 +1100,7 @@ const Login = ({ onLogin }: { onLogin: (user: User) => void }) => {
                 onClick={() => { setIsRegistering(!isRegistering); setError(''); }}
                 className="text-slate-400 hover:text-indigo-600 transition-colors text-[11px] font-bold uppercase tracking-wider"
               >
-                {isRegistering ? 'Zaten hesabınız var mı? Giriş Yapın' : 'Hesabınız yok mu? Hemen Katılın'}
+                {isRegistering ? 'Zaten hesabınız var mı? Giriş Yapın' : 'Yeni Kayıt Oluştur'}
               </button>
             </div>
           </form>
@@ -1115,7 +1108,7 @@ const Login = ({ onLogin }: { onLogin: (user: User) => void }) => {
 
         {/* Footer info */}
         <p className="text-[10px] text-white/30 mt-6 sm:mt-10 text-center font-black tracking-[0.3em] uppercase">
-          Gelal Teknoloji " v2.0
+          Ömür Teknoloji " v2.0
         </p>
       </motion.div>
     </div>
@@ -1166,6 +1159,95 @@ const normalizeInvoice = (invoice: any): Invoice => ({
 
 
 
+const generateMovementPDF = async (tx: any, cariName: string, settings: any) => {
+  const isBorc = tx.type === 'Borç';
+  const belgeAdi = isBorc ? 'ÖDEME BELGESİ' : 'TAHSİLAT BELGESİ';
+  const firmaAdi = settings?.company_name || 'Ön Muhasebe';
+  const firmaAdres = settings?.address || '';
+  const firmaTel = settings?.phone || '';
+
+  const doc = new jsPDF({ format: 'a6', orientation: 'portrait', unit: 'mm' });
+  registerPdfFonts(doc);
+  doc.setFont('ArialTR', 'normal');
+
+  const W = 105, pad = 6;
+
+  // Başlık kutusu
+  doc.setFillColor(isBorc ? 220 : 34, isBorc ? 38 : 197, isBorc ? 127 : 94);
+  doc.roundedRect(pad, 4, W - pad * 2, 14, 2, 2, 'F');
+  doc.setFont('ArialTR', 'bold');
+  doc.setFontSize(13);
+  doc.setTextColor(255, 255, 255);
+  doc.text(belgeAdi, W / 2, 13, { align: 'center' });
+
+  // Firma bilgisi
+  doc.setTextColor(30, 30, 30);
+  doc.setFont('ArialTR', 'bold');
+  doc.setFontSize(10);
+  doc.text(firmaAdi, W / 2, 23, { align: 'center' });
+  if (firmaAdres) { doc.setFont('ArialTR', 'normal'); doc.setFontSize(8); doc.text(firmaAdres, W / 2, 28, { align: 'center' }); }
+  if (firmaTel) { doc.setFontSize(8); doc.text(`Tel: ${firmaTel}`, W / 2, 32, { align: 'center' }); }
+
+  // Çizgi
+  let y = firmaAdres || firmaTel ? 36 : 28;
+  doc.setDrawColor(200, 200, 200);
+  doc.line(pad, y, W - pad, y);
+  y += 5;
+
+  // Bilgi satırları
+  const rows = [
+    ['Makbuz No', tx.makbuz_no || '-'],
+    ['Tarih', tx.date || '-'],
+    ['Saat', tx.time || '-'],
+    ['Cari', cariName],
+    ['Tür', tx.islem_turu || 'Nakit'],
+    ['Açıklama', tx.description || '-'],
+  ];
+
+  doc.setFontSize(9);
+  for (const [label, val] of rows) {
+    doc.setFont('ArialTR', 'bold');
+    doc.setTextColor(100, 100, 100);
+    doc.text(label + ':', pad, y);
+    doc.setFont('ArialTR', 'normal');
+    doc.setTextColor(20, 20, 20);
+    doc.text(String(val), pad + 28, y);
+    y += 6;
+  }
+
+  // Tutar kutusu
+  y += 2;
+  doc.setFillColor(isBorc ? 254 : 240, isBorc ? 226 : 253, isBorc ? 226 : 244);
+  doc.roundedRect(pad, y, W - pad * 2, 14, 2, 2, 'F');
+  doc.setFont('ArialTR', 'bold');
+  doc.setFontSize(9);
+  doc.setTextColor(isBorc ? 185 : 22, isBorc ? 28 : 163, isBorc ? 28 : 74);
+  doc.text(isBorc ? 'ÖDEME TUTARI' : 'TAHSİLAT TUTARI', W / 2, y + 5, { align: 'center' });
+  doc.setFontSize(14);
+  doc.text(`₺${Number(tx.amount).toLocaleString('tr-TR', { minimumFractionDigits: 2 })}`, W / 2, y + 12, { align: 'center' });
+
+  // İmza çizgisi
+  y += 22;
+  doc.setDrawColor(180, 180, 180);
+  doc.line(pad, y, W / 2 - 4, y);
+  doc.line(W / 2 + 4, y, W - pad, y);
+  doc.setFont('ArialTR', 'normal');
+  doc.setFontSize(7);
+  doc.setTextColor(150, 150, 150);
+  doc.text('Teslim Eden', pad + 8, y + 4);
+  doc.text('Teslim Alan', W / 2 + 12, y + 4);
+
+  const pdfBase64 = doc.output('datauristring').split(',')[1];
+  const fileName = `${isBorc ? 'odeme' : 'tahsilat'}_${tx.makbuz_no || Date.now()}.pdf`;
+
+  try {
+    const { uri } = await Filesystem.writeFile({ path: fileName, data: pdfBase64, directory: Directory.Cache });
+    await Share.share({ title: belgeAdi, url: uri, dialogTitle: `${belgeAdi} Paylaş` });
+  } catch {
+    doc.save(fileName);
+  }
+};
+
 const BackButton = ({ onClick }: { onClick: () => void }) => (
   <button 
     onClick={onClick} 
@@ -1174,6 +1256,66 @@ const BackButton = ({ onClick }: { onClick: () => void }) => (
     <ArrowLeft size={24} />
   </button>
 );
+
+const InventoryView = ({ stocks }: { stocks: Stok[] }) => {
+  const [mode, setMode] = React.useState<'adet' | 'koli'>('adet');
+  // Sıfır hariç hepsini göster (negatif dahil)
+  const filtered = [...stocks]
+    .filter(s => safeBalance(s.quantity) !== 0)
+    .sort((a, b) => a.code.localeCompare(b.code))
+    .filter((s, i, arr) => arr.findIndex(x => x.code === s.code && x.name === s.name) === i);
+
+  const getDisplay = (s: Stok) => {
+    if (mode === 'adet') {
+      return { qty: safeBalance(s.quantity), unit: s.base_unit };
+    }
+    if (s.alt_unit && s.conversion_factor > 0) {
+      const koli = safeBalance(s.quantity) / s.conversion_factor;
+      return { qty: Math.floor(koli * 1000) / 1000, unit: s.alt_unit };
+    }
+    return { qty: safeBalance(s.quantity), unit: s.base_unit };
+  };
+
+  return (
+    <div>
+      <div className="flex gap-2 p-2 pb-0">
+        <button
+          onClick={() => setMode('adet')}
+          className={`flex-1 py-2 rounded-xl font-black text-sm uppercase tracking-wide transition-all ${mode === 'adet' ? 'bg-indigo-600 text-white shadow' : 'bg-slate-100 text-slate-500'}`}
+        >
+          Adet Bazında
+        </button>
+        <button
+          onClick={() => setMode('koli')}
+          className={`flex-1 py-2 rounded-xl font-black text-sm uppercase tracking-wide transition-all ${mode === 'koli' ? 'bg-indigo-600 text-white shadow' : 'bg-slate-100 text-slate-500'}`}
+        >
+          Koli Bazında
+        </button>
+      </div>
+      <div className="divide-y divide-slate-100 mt-2">
+        {filtered.map((s, index) => {
+          const { qty, unit } = getDisplay(s);
+          const isNegative = qty < 0;
+          return (
+            <div key={s.id} className={`flex items-center px-2 py-1.5 ${isNegative ? 'bg-red-50' : index % 2 === 0 ? 'bg-blue-50/50' : 'bg-white'}`}>
+              <div className="flex-1 min-w-0 font-black text-[15px] text-slate-900 leading-none uppercase tracking-tight whitespace-nowrap overflow-hidden text-ellipsis pr-2">
+                <span className="text-indigo-600/50 mr-3 font-bold">{s.code}</span>
+                {s.name}
+              </div>
+              <div className={`shrink-0 font-black text-[15px] whitespace-nowrap ${isNegative ? 'text-red-600' : 'text-slate-800'}`}>
+                {qty.toLocaleString('tr-TR')} <span className="text-[11px] font-bold text-slate-400">{unit}</span>
+                {isNegative && <span className="ml-1 text-[10px] font-black text-red-500">⚠</span>}
+              </div>
+            </div>
+          );
+        })}
+        {filtered.length === 0 && (
+          <div className="text-center py-10 text-slate-400 font-bold">Stokta ürün yok</div>
+        )}
+      </div>
+    </div>
+  );
+};
 
 export default function App() {
   const [user, setUser] = useState<User | null>(null);
@@ -1245,13 +1387,9 @@ export default function App() {
     { id: 'users', label: 'Ayarlar', icon: Settings, roles: ['Yönetici'] },
   ];
 
-  const hasPermission = (viewId: string) => {
+  const hasPermission = (_viewId: string) => {
     if (!user) return false;
-    if (viewId === 'dashboard') return true;
-    if (isSuperAdmin) return true;
-    if (viewId === 'users') return isSuperAdmin;
-    const item = menuItems.find(m => m.id === viewId);
-    return !!item && item.roles.includes(normalizeRoleLabel(user.role));
+    return true; // Tüm kullanıcılar tüm alanlara erişebilir
   };
 
   
@@ -1302,15 +1440,7 @@ export default function App() {
     if (subView !== 'movements' && subView !== 'movement_entry') {
       setSelectedCariForMovement(null);
     }
-    if (subView !== 'movement_entry') {
-      setEditingTransaction(null);
-    } else {
-      const initialDate = editingTransaction?.date ? (typeof editingTransaction.date === 'string' && editingTransaction.date.includes('T') ? editingTransaction.date.split('T')[0] : (editingTransaction.date instanceof Date ? editingTransaction.date.toISOString().split('T')[0] : String(editingTransaction.date))) : new Date().toISOString().split('T')[0];
-      const initialTime = editingTransaction?.time || new Date().toTimeString().slice(0, 5);
-      setMovementDate(initialDate);
-      setMovementTime(initialTime);
-    }
-  }, [subView, editingTransaction]);
+  }, [subView]);
 
   const fetchData = async () => {
     try {
@@ -1600,8 +1730,9 @@ export default function App() {
 
     if (subView === 'movement_entry') {
       const selectedCariData = selectedCariForMovement ? caris.find(c => String(c.id) === String(selectedCariForMovement)) : null;
+      const safeTrans = Array.isArray(transactions) ? transactions : [];
       const nextMakbuzNo = String(
-        transactions.reduce((maxNo: number, transaction: any) => {
+        safeTrans.reduce((maxNo: number, transaction: any) => {
           const makbuzNo = String(transaction?.makbuz_no || '').trim();
           if (!/^\d{1,6}$/.test(makbuzNo)) return maxNo;
           return Math.max(maxNo, parseInt(makbuzNo, 10));
@@ -1611,6 +1742,22 @@ export default function App() {
       const cariBakiye = formatBalance(selectedCariData?.balance);
       const bakiyeAbs = Math.abs(cariBakiye);
       const bakiyeDurum = cariBakiye > 0 ? 'Alacak' : cariBakiye < 0 ? 'Borç' : 'Denk';
+
+      // Tarih parçaları — editingTransaction'dan veya bugünden al
+      const today = new Date();
+      const parseDate = (rawDate: any): string => {
+        if (!rawDate) return today.toISOString().split('T')[0];
+        const s = String(rawDate);
+        if (s.includes('T')) return s.split('T')[0];
+        if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+        if (/^\d{2}-\d{2}-\d{4}$/.test(s)) {
+          const [d, m, y] = s.split('-');
+          return `${y}-${m}-${d}`;
+        }
+        return today.toISOString().split('T')[0];
+      };
+      const computedDate = parseDate(editingTransaction?.date);
+      const computedTime = editingTransaction?.time || movementTime || new Date().toTimeString().slice(0, 5);
 
       return (
         <div className="max-w-2xl mx-auto h-full flex flex-col overflow-hidden">
@@ -1627,7 +1774,7 @@ export default function App() {
           </div>
 
           <div className="flex-1 overflow-y-auto px-1 pb-20 sm:pb-4 custom-scrollbar">
-            <form onSubmit={async (e) => {
+            <form key={editingTransaction?.id || 'new'} onSubmit={async (e) => {
               e.preventDefault();
               try {
                 const formData = new FormData(e.currentTarget);
@@ -1647,9 +1794,9 @@ export default function App() {
 
                 const transactionData = {
                   cari_id: data.cari_id,
-                  type: borcVal > 0 ? 'Borç' : 'Alacak',
+                  type: borcVal > 0 ? 'Borc' : 'Alacak',
                   amount: Number(borcVal > 0 ? borcVal : alacakVal),
-                  date: data.date ? formatDateToDDMMYYYY(new Date(data.date as string)) : formatDateToDDMMYYYY(),
+                  date: movementDate || computedDate ? formatDateToDDMMYYYY(new Date(movementDate || computedDate)) : formatDateToDDMMYYYY(),
                   time: String(data.time || new Date().toTimeString().slice(0, 5)),
                   description: String(data.description || ''),
                   evrak_no: '',
@@ -1737,15 +1884,22 @@ export default function App() {
                   <span className="text-[9px] font-bold text-white tracking-wide uppercase">İşlem Detayları</span>
                 </div>
                 <div className="p-2 grid grid-cols-3 gap-2">
-                  <div className="col-span-1">
-                    <label className="block text-[9px] font-bold text-slate-500 uppercase mb-0.5 ml-1 tracking-tight">Tarih</label>
-                    <input name="date" type="date" className="input-field !text-[13px] !py-0 w-full h-[32px] leading-tight" value={movementDate} onChange={(e) => setMovementDate(e.target.value)} required />
+                  <div className="min-w-0">
+                    <label className="block text-[9px] font-bold text-slate-500 uppercase mb-0.5 ml-1 tracking-tight">Takvim</label>
+                    <input
+                      name="movement_date"
+                      type="date"
+                      className="input-field !text-[13px] !py-0 px-2 bg-white w-full h-[32px] leading-tight"
+                      value={movementDate || computedDate}
+                      onChange={(e) => setMovementDate(e.target.value)}
+                      required
+                    />
                   </div>
-                  <div className="col-span-1">
+                  <div className="min-w-0">
                     <label className="block text-[9px] font-bold text-slate-500 uppercase mb-0.5 ml-1 tracking-tight">Saat</label>
-                    <input name="time" type="time" className="input-field !text-[13px] !py-0 w-full h-[32px] leading-tight" value={movementTime} onChange={(e) => setMovementTime(e.target.value)} required />
+                    <input name="time" type="time" className="input-field !text-[13px] !py-0 w-full h-[32px] leading-tight" defaultValue={computedTime} required />
                   </div>
-                  <div className="col-span-1">
+                  <div className="min-w-0">
                     <label className="block text-[9px] font-bold text-slate-500 uppercase mb-0.5 ml-1 tracking-tight">Tür</label>
                     <select name="islem_turu" className="input-field !text-[13px] !py-0 px-2 bg-white w-full h-[32px] leading-tight appearance-none" defaultValue={editingTransaction?.islem_turu || "Nakit"}>
                       <option>Nakit</option>
@@ -1770,7 +1924,13 @@ export default function App() {
                         inputMode="decimal"
                         className="input-field text-sm py-1.5 font-bold text-red-600 bg-red-50/30 border-red-100" 
                         placeholder="0,00" 
-                        defaultValue={normalizeCariTransactionType(editingTransaction?.type) === 'Borç' ? formatForInput(Math.abs(editingTransaction.amount)) : ""} 
+                        defaultValue={(() => {
+                          const t = editingTransaction;
+                          if (!t) return "";
+                          const raw = String(t.type || '').toLowerCase().trim();
+                          const isBorc = raw === 'borç' || raw === 'borc' || raw.startsWith('bor');
+                          return isBorc ? formatForInput(Math.abs(t.amount)) : "";
+                        })()} 
                       />
                       <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] font-bold text-red-300">TL</span>
                     </div>
@@ -1784,7 +1944,13 @@ export default function App() {
                         inputMode="decimal"
                         className="input-field text-sm py-1.5 font-bold text-emerald-600 bg-emerald-50/30 border-emerald-100" 
                         placeholder="0,00" 
-                        defaultValue={normalizeCariTransactionType(editingTransaction?.type) === 'Alacak' ? formatForInput(Math.abs(editingTransaction.amount)) : ""} 
+                        defaultValue={(() => {
+                          const t = editingTransaction;
+                          if (!t) return "";
+                          const raw = String(t.type || '').toLowerCase().trim();
+                          const isAlacak = raw === 'alacak';
+                          return isAlacak ? formatForInput(Math.abs(t.amount)) : "";
+                        })()} 
                       />
                       <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] font-bold text-emerald-300">TL</span>
                     </div>
@@ -1809,6 +1975,18 @@ export default function App() {
                   <Check size={20} className="inline mr-2" />
                   {editingTransaction ? 'Güncelle' : 'Kaydet'}
                 </button>
+
+                {editingTransaction && (
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      await generateMovementPDF(editingTransaction, selectedCariData?.name || 'Bilinmeyen', settings);
+                    }}
+                    className="aspect-square flex items-center justify-center bg-blue-500 text-white rounded-2xl shadow-lg border-b-4 border-blue-800 hover:bg-blue-600 transition-colors px-4"
+                  >
+                    <Share2 size={24} />
+                  </button>
+                )}
 
                 {editingTransaction && (
                   <button
@@ -1999,10 +2177,10 @@ export default function App() {
                       lastItem.alacakTutar = inv.type === 'Satış' ? faturaTutari : 0;
                     });
 
-                    // ?lemleri (Nakit, Havale vb.) ekle
+                    // İlemleri (Nakit, Havale vb.) ekle
                     filteredTransactions.forEach(t => {
                       const cari = resolveCariFromEntry(t);
-                      const transactionType = getCariLedgerType(cari?.type, t.type);
+                      const normalizedTType = normalizeCariTransactionType(t.type);
                       allItems.push({
                         id: 'trans-' + t.id,
                         date: t.date,
@@ -2011,21 +2189,21 @@ export default function App() {
                         cari_name: fixTR(cari?.name || ''),
                         cari_code: cari?.code || '',
                         type: t.islem_turu || 'Nakit',
-                        islemTuru: transactionType,
-                        borcTutar: transactionType === 'Borç' ? (t.amount || 0) : 0,
-                        alacakTutar: transactionType === 'Alacak' ? (t.amount || 0) : 0,
+                        islemTuru: normalizedTType,
+                        borcTutar: normalizedTType === 'Borç' ? (t.amount || 0) : 0,
+                        alacakTutar: normalizedTType === 'Alacak' ? (t.amount || 0) : 0,
                         isFatura: false
                       });
 
                       const lastItem = allItems[allItems.length - 1];
                       lastItem.rowType = fixTR(t.islem_turu || 'Nakit');
-                      lastItem.type = transactionType;
+                      lastItem.type = normalizedTType;
                       lastItem.islem_turu = fixTR(t.islem_turu || 'Nakit');
                       lastItem.description = t.description || '';
                       lastItem.evrak_no = t.evrak_no || '';
                       lastItem.makbuz_no = t.makbuz_no || '';
-                      lastItem.borcTutar = transactionType === 'Borç' ? (t.amount || 0) : 0;
-                      lastItem.alacakTutar = transactionType === 'Alacak' ? (t.amount || 0) : 0;
+                      lastItem.borcTutar = normalizedTType === 'Borç' ? (t.amount || 0) : 0;
+                      lastItem.alacakTutar = normalizedTType === 'Alacak' ? (t.amount || 0) : 0;
                     });
 
                     // Tarih ve saate g?re s?rala
@@ -2073,13 +2251,17 @@ export default function App() {
                               onClick={() => {
                                 if (item.id.includes('trans')) {
                                   const transId = item.id.replace('trans-', '');
-                                  setEditingTransaction({
+                                  const origTrans = transactions.find((t: any) => String(t.id) === String(transId));
+                                  const txData = origTrans || {
                                     ...item,
                                     id: transId,
+                                    type: item.borcTutar > 0 ? 'Borc' : 'Alacak',
                                     amount: item.borcTutar || item.alacakTutar,
-                                  });
+                                  };
+                                  // Önce transaction'ı set et, sonra subView'i değiştir
                                   setSelectedCariForMovement(item.cari_id);
-                                  setSubView('movement_entry');
+                                  setEditingTransaction({ ...txData, id: transId });
+                                  setTimeout(() => setSubView('movement_entry'), 0);
                                 } else {
                                   alert('Faturalar "Faturalar" men\u00fcs\u00fcnden d\u00fczenlenebilir.');
                                 }
@@ -2564,53 +2746,11 @@ export default function App() {
                       </div>
                     </form>
                   ) : subView === 'inventory' ? (
-                    <div className="space-y-8">
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
-                        <div className="card bg-blue-50/50 border-blue-100 p-3">
-                          <div className="text-[9px] font-bold text-blue-600 uppercase mb-0.5">TOPLAM (ALIŞ)</div>
-                          <div className="text-lg font-black text-blue-900 leading-none">
-                            {(stocks.reduce((acc, s) => acc + (safeBalance(s.quantity) * safeBalance(s.purchase_price)), 0)).toLocaleString('tr-TR', { minimumFractionDigits: 3, maximumFractionDigits: 3 })} ₺
-                          </div>
-                        </div>
-                        <div className="card bg-emerald-50/50 border-emerald-100 p-3">
-                          <div className="text-[9px] font-bold text-emerald-600 uppercase mb-0.5">TOPLAM (SATIŞ)</div>
-                          <div className="text-lg font-black text-emerald-900 leading-none">
-                            {(stocks.reduce((acc, s) => acc + (safeBalance(s.quantity) * safeBalance(s.sale_price)), 0)).toLocaleString('tr-TR', { minimumFractionDigits: 3, maximumFractionDigits: 3 })} ₺
-                          </div>
-                        </div>
-                      </div>
-                      <div className="card overflow-hidden p-0 border-slate-100">
-                        <div className="overflow-x-auto">
-                          <table className="w-full text-left min-w-[300px]">
-                            <thead className="bg-blue-50/30 border-b border-slate-200">
-                              <tr>
-                                <th className="px-4 py-3 text-[10px] font-bold text-slate-700 uppercase tracking-wider">Ürün</th>
-                                <th className="px-4 py-3 text-[10px] font-bold text-slate-700 uppercase tracking-wider text-right">Stok</th>
-                              </tr>
-                            </thead>
-                            <tbody className="divide-y divide-slate-100">
-                              {stocks.filter(s => safeBalance(s.quantity) > 0).map(s => (
-                                <tr key={s.id} className="hover:bg-blue-50/30 transition-colors">
-                                  <td className="px-4 py-3">
-                                    <div className="font-bold text-slate-900 text-xs">
-                                      <span className="text-blue-600/50 mr-1.5 font-bold uppercase">{s.code}</span>
-                                      {s.name}
-                                    </div>
-                                  </td>
-                                  <td className="px-4 py-3 text-right">
-                                    <div className="font-black text-slate-900 text-xs">{s.quantity} <span className="text-[8px] font-bold text-slate-400">{s.base_unit}</span></div>
-                                  </td>
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
-                        </div>
-                      </div>
-                    </div>
+                    <InventoryView stocks={stocks} />
                   ) : (
                     <div className="overflow-hidden">
                       <div className="flex px-2 py-1.5 bg-blue-50/30 border-b border-slate-200">
-                        <div className="flex-1 text-[11px] font-bold text-slate-700 uppercase tracking-wider">Ürün (Kod / İsim)</div>
+                        <div className="flex-1 text-[11px] font-bold text-slate-700 uppercase tracking-wider">Kod / İsim</div>
                         <div className="shrink-0 text-[11px] font-bold text-slate-700 uppercase tracking-wider text-right">Alış KDV'siz</div>
                       </div>
                       <div className="divide-y divide-slate-100">
@@ -2621,7 +2761,7 @@ export default function App() {
                             onClick={() => { setEditingStok(s); setSubView('edit'); }}
                           >
                             <div className="flex-1 min-w-0 font-black text-[15px] text-slate-900 leading-none uppercase tracking-tight whitespace-nowrap overflow-hidden text-ellipsis pr-2">
-                              <span className="text-indigo-600/50 mr-1 font-bold">{s.code}</span>
+                              <span className="text-indigo-600/50 mr-3 font-bold">{s.code}</span>
                               {s.name}
                             </div>
                             <div className="shrink-0 font-black text-[15px] text-emerald-600 whitespace-nowrap">
@@ -3390,7 +3530,7 @@ export default function App() {
               <span className="text-slate-400">OTURUM UID:</span> <span className="text-slate-900 font-bold">{user?.id}</span>
             </div>
             <div className="p-3 bg-blue-50/30 rounded-xl">
-              <span className="text-slate-400">ROL:</span> <span className="text-indigo-600 font-bold">{normalizeRoleLabel(user?.role)}</span>
+              <span className="text-slate-400">E-POSTA:</span> <span className="text-indigo-600 font-bold">{user?.email}</span>
             </div>
           </div>
         </div>
@@ -3399,19 +3539,15 @@ export default function App() {
           <h3 className="text-sm font-bold text-slate-400 uppercase tracking-widest ml-1">Kayıtlı Kullanıcılar</h3>
           <div className="grid grid-cols-1 gap-3">
             {allUsers.map((u: any) => {
-              const roleLabel = normalizeRoleLabel(u.role);
               return (
                 <div key={u.id} className="bg-blue-50/50 border border-slate-200 rounded-3xl p-4 shadow-sm flex items-center justify-between gap-3 group hover:border-indigo-200 transition-all">
                   <div className="flex items-center gap-4 min-w-0">
-                    <div className={`w-12 h-12 rounded-2xl shrink-0 flex items-center justify-center font-black text-lg shadow-sm ${roleLabel === 'Yönetici' ? 'bg-indigo-600 text-white' : roleLabel === 'Muhasebeci' ? 'bg-blue-500 text-white' : 'bg-emerald-500 text-white'}`}>
+                    <div className="w-12 h-12 rounded-2xl shrink-0 flex items-center justify-center font-black text-lg shadow-sm bg-indigo-600 text-white">
                       {fixTR(u.username)?.[0]?.toUpperCase() || '?'}
                     </div>
                     <div className="min-w-0">
                       <div className="flex flex-wrap items-center gap-2">
                         <h4 className="font-bold text-slate-900 truncate">{fixTR(u.username || 'İsimsiz')}</h4>
-                        <span className={`px-2 py-0.5 rounded-lg text-[9px] font-black uppercase tracking-tighter ${roleLabel === 'Yönetici' ? 'bg-indigo-50 text-indigo-700' : 'bg-slate-100 text-slate-600'}`}>
-                          {roleLabel}
-                        </span>
                         {u.isBanned && (
                           <span className="px-2 py-0.5 rounded-lg text-[9px] font-black uppercase tracking-tighter bg-rose-50 text-rose-600">
                             Banlı
@@ -3527,7 +3663,7 @@ export default function App() {
           </div>
 
           <nav className="flex-1 p-4 space-y-2 mt-16 lg:mt-0">
-            {menuItems.filter(item => item.roles.includes(normalizeRoleLabel(user.role))).map(item => (
+            {menuItems.map(item => (
               <button
                 key={item.id}
                 onClick={() => {
@@ -3557,7 +3693,7 @@ export default function App() {
               {!isSidebarCollapsed && (
                 <div className="flex-1 overflow-hidden">
                   <p className="text-sm font-bold text-slate-900 truncate">{user.username}</p>
-                  <p className="text-xs text-slate-500">{user.role}</p>
+                  <p className="text-xs text-slate-500">{user.email}</p>
                 </div>
               )}
             </div>
