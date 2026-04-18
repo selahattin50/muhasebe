@@ -54,5 +54,8 @@ export const formatCurrencyColor = (amount: number): string => {
   return 'text-slate-600';
 };
 
-// Fiyat gösterimi (displayBalance ile aynı, alias)
-export const displayPrice = displayBalance;
+// Fiyat gösterimi (3 ondalık)
+export const displayPrice = (price: any): string => {
+  const value = formatBalance(price);
+  return value.toLocaleString('tr-TR', { minimumFractionDigits: 3, maximumFractionDigits: 3 });
+};

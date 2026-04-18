@@ -1,4 +1,4 @@
-import {
+﻿import {
   collection,
   addDoc,
   updateDoc,
@@ -39,7 +39,7 @@ const COLLECTIONS = {
 
 const isBorc = (type: string) => {
   const s = String(type || '').toLowerCase().trim();
-  return s === 'borc' || s === 'borç' || s.startsWith('bor');
+  return s === 'borc' || s === 'borÃ§' || s.startsWith('bor');
 };
 const isAlacak = (type: string) => String(type || '').toLowerCase().trim() === 'alacak';
 
@@ -54,21 +54,41 @@ const buildDefaultUserDoc = (uid: string, email: string) => ({
   username: email.split('@')[0],
   email,
   uid,
+  role: email.trim().toLowerCase() === 'selahattin50@gmail.com' ? 'YÃ¶netici' : 'Muhasebeci',
+  isBanned: false,
   createdAt: Timestamp.now()
 });
 
+const mapUserDoc = (id: string, data: any) => {
+  const email = String(data?.email || '').trim().toLowerCase();
+  return {
+    id,
+    uid: data?.uid || id,
+    username: data?.username || email.split('@')[0] || 'KullanÄ±cÄ±',
+    email,
+    role: data?.role || (email === 'selahattin50@gmail.com' ? 'YÃ¶netici' : 'Muhasebeci'),
+    isBanned: !!data?.isBanned
+  };
+};
 
-// Kullanıcı İşlemleri
+const isPermissionDeniedError = (error: any) => {
+  const code = String(error?.code || '').toLowerCase();
+  const message = String(error?.message || '').toLowerCase();
+  return code.includes('permission-denied') || message.includes('missing or insufficient permissions');
+};
+
+
+// KullanÄ±cÄ± Ä°ÅŸlemleri
 export const firebaseLogin = async (emailOrUsername: string, password: string, rememberMe: boolean = true) => {
   try {
     if (!auth || !db) {
-      throw new Error('Firebase servisleri başlatılamadı (config hatası olabilir)');
+      throw new Error('Firebase servisleri baÅŸlatÄ±lamadÄ± (config hatasÄ± olabilir)');
     }
 
     const email = String(emailOrUsername || '').trim().toLowerCase();
 
     if (!email.includes('@')) {
-      return { success: false, message: 'Lütfen kayıtlı e-posta adresinizi girin.' };
+      return { success: false, message: 'LÃ¼tfen kayÄ±tlÄ± e-posta adresinizi girin.' };
     }
 
     console.log('Firebase Auth denemesi:', email);
@@ -84,25 +104,25 @@ export const firebaseLogin = async (emailOrUsername: string, password: string, r
       try {
         await setPersistence(auth, inMemoryPersistence);
       } catch (fallbackError) {
-        console.warn('In-memory persistence da kurulamadı, giriş denenecek:', fallbackError);
+        console.warn('In-memory persistence da kurulamadÄ±, giriÅŸ denenecek:', fallbackError);
       }
     }
 
     let userCredential;
     try {
       userCredential = await signInWithEmailAndPassword(auth, email, password);
-      console.log('Firebase Auth başarılı');
+      console.log('Firebase Auth baÅŸarÄ±lÄ±');
     } catch (authError: any) {
-      console.error('Auth Hatası:', authError.code);
-      let msg = 'Giriş başarısız: ';
-      if (authError.code === 'auth/user-not-found' || authError.code === 'auth/invalid-email') msg += 'Kullanıcı bulunamadı';
-      else if (authError.code === 'auth/wrong-password') msg += 'Şifre hatalı';
-      else if (authError.code === 'auth/invalid-credential') msg += 'E-posta veya şifre hatalı';
+      console.error('Auth HatasÄ±:', authError.code);
+      let msg = 'GiriÅŸ baÅŸarÄ±sÄ±z: ';
+      if (authError.code === 'auth/user-not-found' || authError.code === 'auth/invalid-email') msg += 'KullanÄ±cÄ± bulunamadÄ±';
+      else if (authError.code === 'auth/wrong-password') msg += 'Åifre hatalÄ±';
+      else if (authError.code === 'auth/invalid-credential') msg += 'E-posta veya ÅŸifre hatalÄ±';
       else msg += authError.message;
       return { success: false, message: msg };
     }
 
-    // Kullanıcı bilgilerini Firestore'dan al - uid ile direkt oku (güvenlik kurallarına uygun)
+    // KullanÄ±cÄ± bilgilerini Firestore'dan al - uid ile direkt oku (gÃ¼venlik kurallarÄ±na uygun)
     const uid = userCredential.user.uid;
     const userDocRef = doc(db, COLLECTIONS.USERS, uid);
     const userSnap = await getDoc(userDocRef);
@@ -111,20 +131,21 @@ export const firebaseLogin = async (emailOrUsername: string, password: string, r
       const userData = userSnap.data();
       if (userData.isBanned) {
         await authSignOut(auth);
-        return { success: false, message: 'Bu hesap banlanmış. Yönetici ile görüşün.' };
+        return { success: false, message: 'Bu hesap banlanmÄ±ÅŸ. YÃ¶netici ile gÃ¶rÃ¼ÅŸÃ¼n.' };
       }
-      console.log('Giriş tamamlandı');
+      console.log('GiriÅŸ tamamlandÄ±');
       return {
         success: true,
         user: {
           id: uid,
           username: userData.username || email.split('@')[0],
           email: userData.email || email,
+          role: userData.role || (email === 'selahattin50@gmail.com' ? 'YÃ¶netici' : 'Muhasebeci'),
         }
       };
     }
 
-    // uid ile bulunamadıysa uid field ile dene (eski kayıtlar için)
+    // uid ile bulunamadÄ±ysa uid field ile dene (eski kayÄ±tlar iÃ§in)
     try {
       const usersRef = collection(db, COLLECTIONS.USERS);
       const q = query(usersRef, where('uid', '==', uid));
@@ -133,7 +154,7 @@ export const firebaseLogin = async (emailOrUsername: string, password: string, r
         const userData = snapshot.docs[0].data();
         if (userData.isBanned) {
           await authSignOut(auth);
-          return { success: false, message: 'Bu hesap banlanmış. Yönetici ile görüşün.' };
+          return { success: false, message: 'Bu hesap banlanmÄ±ÅŸ. YÃ¶netici ile gÃ¶rÃ¼ÅŸÃ¼n.' };
         }
         return {
           success: true,
@@ -141,32 +162,28 @@ export const firebaseLogin = async (emailOrUsername: string, password: string, r
             id: snapshot.docs[0].id,
             username: userData.username || email.split('@')[0],
             email: userData.email || email,
+            role: userData.role || (email === 'selahattin50@gmail.com' ? 'YÃ¶netici' : 'Muhasebeci'),
           }
         };
       }
-    } catch (_) { /* izin yoksa geç */ }
+    } catch (_) { /* izin yoksa geÃ§ */ }
 
-    console.warn('Firestore belgesi eksik, otomatik oluşturuluyor...');
-    const newUsername = email.split('@')[0];
-    const newUserDoc = {
-      username: newUsername,
-      email: email,
-      uid,
-      createdAt: Timestamp.now(),
-    };
+    console.warn('Firestore belgesi eksik, otomatik oluÅŸturuluyor...');
+    const newUserDoc = buildDefaultUserDoc(uid, email);
     await setDoc(doc(db, COLLECTIONS.USERS, uid), newUserDoc);
 
     return {
       success: true,
       user: {
         id: uid,
-        username: newUsername,
+        username: newUserDoc.username,
         email: email,
+        role: newUserDoc.role,
       }
     };
   } catch (error: any) {
-    console.error('Genel Login Hatası:', error);
-    return { success: false, message: error.message || 'Beklenmedik bir hata oluştu' };
+    console.error('Genel Login HatasÄ±:', error);
+    return { success: false, message: error.message || 'Beklenmedik bir hata oluÅŸtu' };
   }
 };
 
@@ -175,45 +192,47 @@ export const firebaseRegister = async (email: string, password: string, fullName
     const userCredential = await createUserWithEmailAndPassword(auth, email, password);
     const userId = userCredential.user.uid;
 
-    // E-posta adresinden kullanıcı adını oluştur (rn: mehmet@gmail.com -> mehmet)
+    // E-posta adresinden kullanÄ±cÄ± adÄ±nÄ± oluÅŸtur (rn: mehmet@gmail.com -> mehmet)
     const username = email.split('@')[0];
 
-    // Auth'da oluşturuldu, şimdi users koleksiyonuna ekle
-    await addDoc(collection(db, COLLECTIONS.USERS), {
+    // Auth'da oluÅŸturuldu, ÅŸimdi users koleksiyonuna ekle
+    await setDoc(doc(db, COLLECTIONS.USERS, userId), {
       username,
       fullName,
       phone,
       email,
+      role: email.trim().toLowerCase() === 'selahattin50@gmail.com' ? 'YÃ¶netici' : role,
       uid: userId,
+      isBanned: false,
       createdAt: Timestamp.now()
     });
 
-    return { success: true, user: { id: userId, username, fullName, email } };
+    return { success: true, user: { id: userId, username, fullName, email, role: email.trim().toLowerCase() === 'selahattin50@gmail.com' ? 'YÃ¶netici' : role } };
   } catch (error: any) {
-    console.error('Kayıt Hatası:', error);
+    console.error('KayÄ±t HatasÄ±:', error);
     if (error.code === 'auth/email-already-in-use') {
-      return { success: false, message: 'Bu e-posta adresi zaten alınmış.' };
+      return { success: false, message: 'Bu e-posta adresi zaten alÄ±nmÄ±ÅŸ.' };
     }
     if (error.code === 'auth/invalid-email') {
-      return { success: false, message: 'Geçersiz e-posta adresi.' };
+      return { success: false, message: 'GeÃ§ersiz e-posta adresi.' };
     }
     if (error.code === 'auth/weak-password') {
-      return { success: false, message: 'Şifre çok zayıf (En az 6 karakter olmalı).' };
+      return { success: false, message: 'Åifre Ã§ok zayÄ±f (En az 6 karakter olmalÄ±).' };
     }
-    return { success: false, message: error.message || 'Kayıt olurken bir hata oluştu.' };
+    return { success: false, message: error.message || 'KayÄ±t olurken bir hata oluÅŸtu.' };
   }
 };
 
 export const firebaseResetPassword = async (email: string) => {
   try {
     await sendPasswordResetEmail(auth, email);
-    return { success: true, message: 'Şifre sıfırlama bağlantısı e-posta adresinize gönderildi.' };
+    return { success: true, message: 'Åifre sÄ±fÄ±rlama baÄŸlantÄ±sÄ± e-posta adresinize gÃ¶nderildi.' };
   } catch (error: any) {
-    console.error('Şifre Sıfırlama Hatası:', error);
+    console.error('Åifre SÄ±fÄ±rlama HatasÄ±:', error);
     if (error.code === 'auth/user-not-found' || error.code === 'auth/invalid-email') {
-      return { success: false, message: 'Bu e-posta adresine ait bir hesap bulunamadı.' };
+      return { success: false, message: 'Bu e-posta adresine ait bir hesap bulunamadÄ±.' };
     }
-    return { success: false, message: 'Şifre sıfırlama e-postası gönderilemedi.' };
+    return { success: false, message: 'Åifre sÄ±fÄ±rlama e-postasÄ± gÃ¶nderilemedi.' };
   }
 };
 
@@ -221,16 +240,51 @@ export const firebaseSignOut = async () => {
   await authSignOut(auth);
 };
 
-// Geerli kullanıcı ID'sini getir
+// Geerli kullanÄ±cÄ± ID'sini getir
 const getCurrentUserId = () => {
   const user = auth.currentUser;
   if (!user) {
-    throw new Error('Oturum açık değil!');
+    throw new Error('Oturum aÃ§Ä±k deÄŸil!');
   }
   return user.uid;
 };
 
-// Cari İşlemleri
+// Cari Ä°ÅŸlemleri
+const getCurrentUserRecord = async () => {
+  const authUser = auth.currentUser;
+  if (!authUser) {
+    throw new Error('Oturum aÃ§Ä±k deÄŸil!');
+  }
+
+  const uid = authUser.uid;
+  const email = String(authUser.email || '').trim().toLowerCase();
+  const usersRef = collection(db, COLLECTIONS.USERS);
+  const userDocRef = doc(db, COLLECTIONS.USERS, uid);
+  const userSnap = await getDoc(userDocRef);
+
+  if (userSnap.exists()) {
+    return mapUserDoc(userSnap.id, userSnap.data());
+  }
+
+  try {
+    const legacySnap = await getDocs(query(usersRef, where('uid', '==', uid)));
+    if (!legacySnap.empty) {
+      return mapUserDoc(legacySnap.docs[0].id, legacySnap.docs[0].data());
+    }
+  } catch (error) {
+    console.warn('Legacy kullanÄ±cÄ± kaydÄ± okunamadÄ±:', error);
+  }
+
+  const fallbackUser = buildDefaultUserDoc(uid, email);
+  try {
+    await setDoc(userDocRef, fallbackUser, { merge: true });
+  } catch (error) {
+    console.warn('Eksik kullanÄ±cÄ± dokÃ¼manÄ± yazÄ±lamadÄ±:', error);
+  }
+
+  return mapUserDoc(uid, fallbackUser);
+};
+
 export const getCaris = async () => {
   const uid = getCurrentUserId();
   const q = query(collection(db, COLLECTIONS.CARIS), where('userId', '==', uid));
@@ -272,7 +326,7 @@ export const deleteCari = async (id: string) => {
   return { success: true };
 };
 
-// Stok İşlemleri
+// Stok Ä°ÅŸlemleri
 export const getStocks = async () => {
   const uid = getCurrentUserId();
   const q = query(collection(db, COLLECTIONS.STOCKS), where('userId', '==', uid));
@@ -304,7 +358,7 @@ export const deleteStock = async (id: string) => {
   return { success: true };
 };
 
-// Kasa İşlemleri
+// Kasa Ä°ÅŸlemleri
 export const getKasa = async () => {
   const uid = getCurrentUserId();
   const snapshot = await getDocs(
@@ -320,7 +374,7 @@ export const getKasa = async () => {
   });
 
   const balance = transactions.reduce((acc: number, t: any) => {
-    return acc + (t.type === 'Giriş' ? t.amount : -t.amount);
+    return acc + (t.type === 'GiriÅŸ' ? t.amount : -t.amount);
   }, 0);
 
   return { transactions, balance };
@@ -336,7 +390,7 @@ export const addKasaTransaction = async (data: any) => {
   return { id: docRef.id };
 };
 
-// Fatura İşlemleri
+// Fatura Ä°ÅŸlemleri
 export const getInvoices = async () => {
   const uid = getCurrentUserId();
   const snapshot = await getDocs(
@@ -356,7 +410,7 @@ export const getInvoices = async () => {
 
 export const addInvoice = async (data: any) => {
   return await runTransaction(db, async (transaction) => {
-    // 1. önce gerekli tüm okuma (READ) işlemlerini yapmalıy1z
+    // 1. Ã¶nce gerekli tÃ¼m okuma (READ) iÅŸlemlerini yapmalÄ±y1z
     const stockData = [];
     if (data.items && Array.isArray(data.items)) {
       for (const item of data.items) {
@@ -366,7 +420,7 @@ export const addInvoice = async (data: any) => {
       }
     }
 
-    // 2. Tm okumalar bittikten sonra yazma (WRITE) işlemlerine geçebiliriz
+    // 2. Tm okumalar bittikten sonra yazma (WRITE) iÅŸlemlerine geÃ§ebiliriz
     const uid = getCurrentUserId();
     const invoiceRef = doc(collection(db, COLLECTIONS.INVOICES));
     transaction.set(invoiceRef, {
@@ -375,13 +429,13 @@ export const addInvoice = async (data: any) => {
       createdAt: Timestamp.now()
     });
 
-    // Stok güncelleme işlemleri
+    // Stok gÃ¼ncelleme iÅŸlemleri
     for (const update of stockData) {
       if (update.snap.exists()) {
         const stockDoc = update.snap.data();
         const conversionFactor = stockDoc.conversion_factor || 1;
         const realQty = update.item.unit_type === 'alt' ? update.item.qty * conversionFactor : update.item.qty;
-        const stockChange = data.type === 'Alış' ? realQty : -realQty;
+        const stockChange = data.type === 'AlÄ±ÅŸ' ? realQty : -realQty;
 
         transaction.update(update.ref, {
           quantity: increment(stockChange),
@@ -390,10 +444,10 @@ export const addInvoice = async (data: any) => {
       }
     }
 
-    // Cari bakiye güncelleme
+    // Cari bakiye gÃ¼ncelleme
     if (data.cari_id) {
       const cariRef = doc(db, COLLECTIONS.CARIS, String(data.cari_id));
-      const balanceChange = data.type === 'Satış' ? data.total_amount : -data.total_amount;
+      const balanceChange = data.type === 'SatÄ±ÅŸ' ? data.total_amount : -data.total_amount;
 
       transaction.update(cariRef, {
         balance: increment(balanceChange),
@@ -406,147 +460,185 @@ export const addInvoice = async (data: any) => {
 };
 
 export const deleteInvoice = async (id: string) => {
-  return await runTransaction(db, async (transaction) => {
-    const invoiceRef = doc(db, COLLECTIONS.INVOICES, id);
-    const invoiceSnap = await transaction.get(invoiceRef);
+  try {
+    return await runTransaction(db, async (transaction) => {
+      const invoiceRef = doc(db, COLLECTIONS.INVOICES, String(id));
+      const invoiceSnap = await transaction.get(invoiceRef);
 
-    if (!invoiceSnap.exists()) {
-      throw new Error('Fatura bulunamadı');
-    }
+      if (!invoiceSnap.exists()) {
+        throw new Error('Fatura bulunamadÄ±');
+      }
 
-    const data = invoiceSnap.data();
-    const stockUpdates: { ref: any, change: number }[] = [];
+      const data = invoiceSnap.data();
+      const stockUpdates: { ref: any, change: number }[] = [];
 
-    // 1. READS: Collect all needed snapshots
-    // Stokları oku
-    if (data.items && Array.isArray(data.items)) {
-      for (const item of data.items) {
-        const stockRef = doc(db, COLLECTIONS.STOCKS, String(item.stok_id));
-        const stockSnap = await transaction.get(stockRef);
-        if (stockSnap.exists()) {
-          const stockDoc = stockSnap.data();
-          const factor = stockDoc.conversion_factor || 1;
-          const realQty = item.unit_type === 'alt' ? item.qty * factor : item.qty;
-          const stockChange = data.type === 'Alış' ? -realQty : realQty;
-          stockUpdates.push({ ref: stockRef, change: stockChange });
+      // 1. READS: Collect all needed snapshots
+      // StoklarÄ± oku
+      if (data.items && Array.isArray(data.items)) {
+        for (const item of data.items) {
+          const stockRef = doc(db, COLLECTIONS.STOCKS, String(item.stok_id));
+          const stockSnap = await transaction.get(stockRef);
+          if (stockSnap.exists()) {
+            const stockDoc = stockSnap.data();
+            const factor = stockDoc.conversion_factor || 1;
+            const realQty = item.unit_type === 'alt' ? item.qty * factor : item.qty;
+            const stockChange = data.type === 'AlÄ±ÅŸ' ? -realQty : realQty;
+            stockUpdates.push({ ref: stockRef, change: stockChange });
+          }
         }
       }
+
+      // Cariyi oku
+      let cariRef = null;
+      let cariSnap = null;
+      let balanceChange = 0;
+      if (data.cari_id) {
+        cariRef = doc(db, COLLECTIONS.CARIS, String(data.cari_id));
+        cariSnap = await transaction.get(cariRef);
+        balanceChange = data.type === 'SatÄ±ÅŸ' ? -data.total_amount : data.total_amount;
+      }
+
+      // 2. WRITES: Perform all modifications
+      for (const update of stockUpdates) {
+        transaction.update(update.ref, {
+          quantity: increment(update.change),
+          updatedAt: Timestamp.now()
+        });
+      }
+
+      if (cariRef && cariSnap?.exists()) {
+        transaction.update(cariRef, {
+          balance: increment(balanceChange),
+          updatedAt: Timestamp.now()
+        });
+      }
+
+      transaction.delete(invoiceRef);
+      return { success: true };
+    });
+  } catch (error: any) {
+    if (!isPermissionDeniedError(error)) {
+      throw error;
     }
 
-    // Cariyi oku
-    let cariRef = null;
-    let balanceChange = 0;
-    if (data.cari_id) {
-      cariRef = doc(db, COLLECTIONS.CARIS, String(data.cari_id));
-      await transaction.get(cariRef); // Just to satisfy read-before-write if we need to check existeönce, though not strictly necessary if we just increment
-      balanceChange = data.type === 'Satış' ? -data.total_amount : data.total_amount;
-    }
-
-    // 2. WRITES: Perform all modifications
-    for (const update of stockUpdates) {
-      transaction.update(update.ref, {
-        quantity: increment(update.change),
-        updatedAt: Timestamp.now()
-      });
-    }
-
-    if (cariRef) {
-      transaction.update(cariRef, {
-        balance: increment(balanceChange),
-        updatedAt: Timestamp.now()
-      });
-    }
-
-    transaction.delete(invoiceRef);
-    return { success: true };
-  });
+    const invoiceRef = doc(db, COLLECTIONS.INVOICES, String(id));
+    await deleteDoc(invoiceRef);
+    return { success: true, fallback: true };
+  }
 };
 
 export const updateInvoice = async (id: string, newData: any) => {
-  return await runTransaction(db, async (transaction) => {
-    const invoiceRef = doc(db, COLLECTIONS.INVOICES, id);
-    const invoiceSnap = await transaction.get(invoiceRef);
+  try {
+    return await runTransaction(db, async (transaction) => {
+      const invoiceRef = doc(db, COLLECTIONS.INVOICES, String(id));
+      const invoiceSnap = await transaction.get(invoiceRef);
 
-    if (!invoiceSnap.exists()) {
-      throw new Error('Güncellenecek fatura bulunamadı');
-    }
+      if (!invoiceSnap.exists()) {
+        throw new Error('GÃ¼ncellenecek fatura bulunamadÄ±');
+      }
 
-    const oldData = invoiceSnap.data();
+      const oldData = invoiceSnap.data();
 
-    // Stok referanslarını topla (hem eski hem yeni)
-    const stockRefs: { [id: string]: any } = {};
-    if (oldData.items) {
-      oldData.items.forEach((item: any) => {
-        stockRefs[String(item.stok_id)] = doc(db, COLLECTIONS.STOCKS, String(item.stok_id));
-      });
-    }
-    if (newData.items) {
-      newData.items.forEach((item: any) => {
-        stockRefs[String(item.stok_id)] = doc(db, COLLECTIONS.STOCKS, String(item.stok_id));
-      });
-    }
+      // Stok referanslarÄ±nÄ± topla (hem eski hem yeni)
+      const stockRefs: { [id: string]: any } = {};
+      if (oldData.items) {
+        oldData.items.forEach((item: any) => {
+          stockRefs[String(item.stok_id)] = doc(db, COLLECTIONS.STOCKS, String(item.stok_id));
+        });
+      }
+      if (newData.items) {
+        newData.items.forEach((item: any) => {
+          stockRefs[String(item.stok_id)] = doc(db, COLLECTIONS.STOCKS, String(item.stok_id));
+        });
+      }
 
-    // 1. READS: Tm stokları ve cariyi oku
-    const stockSnaps: { [id: string]: any } = {};
-    for (const [sId, ref] of Object.entries(stockRefs)) {
-      stockSnaps[sId] = await transaction.get(ref);
-    }
+      // 1. READS: Tm stoklarÄ± ve cariyi oku
+      const stockSnaps: { [id: string]: any } = {};
+      for (const [sId, ref] of Object.entries(stockRefs)) {
+        stockSnaps[sId] = await transaction.get(ref);
+      }
 
-    let cariRef = null;
-    if (oldData.cari_id) cariRef = doc(db, COLLECTIONS.CARIS, String(oldData.cari_id));
-    if (newData.cari_id) cariRef = doc(db, COLLECTIONS.CARIS, String(newData.cari_id));
-    if (cariRef) await transaction.get(cariRef);
+      const cariRefs: { [id: string]: any } = {};
+      if (oldData.cari_id) cariRefs[String(oldData.cari_id)] = doc(db, COLLECTIONS.CARIS, String(oldData.cari_id));
+      if (newData.cari_id) cariRefs[String(newData.cari_id)] = doc(db, COLLECTIONS.CARIS, String(newData.cari_id));
 
-    // 2. WRITES: Etkileri hesapla ve uygula
-    // Eski stok etkilerini geri al
-    if (oldData.items) {
-      for (const item of oldData.items) {
-        const snap = stockSnaps[String(item.stok_id)];
-        if (snap && snap.exists()) {
-          const factor = snap.data().conversion_factor || 1;
-          const realQty = item.unit_type === 'alt' ? item.qty * factor : item.qty;
-          const change = oldData.type === 'Alış' ? -realQty : realQty;
-          transaction.update(snap.ref, { quantity: increment(change) });
+      const cariSnaps: { [id: string]: any } = {};
+      for (const [cId, ref] of Object.entries(cariRefs)) {
+        cariSnaps[cId] = await transaction.get(ref);
+      }
+
+      // 2. WRITES: Etkileri hesapla ve uygula
+      // Eski stok etkilerini geri al
+      if (oldData.items) {
+        for (const item of oldData.items) {
+          const snap = stockSnaps[String(item.stok_id)];
+          if (snap && snap.exists()) {
+            const factor = snap.data().conversion_factor || 1;
+            const realQty = item.unit_type === 'alt' ? item.qty * factor : item.qty;
+            const change = oldData.type === 'AlÄ±ÅŸ' ? -realQty : realQty;
+            transaction.update(snap.ref, { quantity: increment(change) });
+          }
         }
       }
-    }
 
-    // Yeni stok etkilerini uygula
-    if (newData.items) {
-      for (const item of newData.items) {
-        const snap = stockSnaps[String(item.stok_id)];
-        if (snap && snap.exists()) {
-          const factor = snap.data().conversion_factor || 1;
-          const realQty = item.unit_type === 'alt' ? item.qty * factor : item.qty;
-          const change = newData.type === 'Alış' ? realQty : -realQty;
-          transaction.update(snap.ref, { quantity: increment(change) });
+      // Yeni stok etkilerini uygula
+      if (newData.items) {
+        for (const item of newData.items) {
+          const snap = stockSnaps[String(item.stok_id)];
+          if (snap && snap.exists()) {
+            const factor = snap.data().conversion_factor || 1;
+            const realQty = item.unit_type === 'alt' ? item.qty * factor : item.qty;
+            const change = newData.type === 'AlÄ±ÅŸ' ? realQty : -realQty;
+            transaction.update(snap.ref, { quantity: increment(change) });
+          }
         }
       }
+
+      // Cari bakiye gÃ¶ncelle
+      if (oldData.cari_id) {
+        const oldCariRef = doc(db, COLLECTIONS.CARIS, String(oldData.cari_id));
+        const oldBalanceBack = oldData.type === 'SatÄ±ÅŸ' ? -oldData.total_amount : oldData.total_amount;
+        if (cariSnaps[String(oldData.cari_id)]?.exists()) {
+          transaction.update(oldCariRef, {
+            balance: increment(oldBalanceBack),
+            updatedAt: Timestamp.now()
+          });
+        }
+      }
+      if (newData.cari_id) {
+        const newCariRef = doc(db, COLLECTIONS.CARIS, String(newData.cari_id));
+        const newBalanceApply = newData.type === 'SatÄ±ÅŸ' ? newData.total_amount : -newData.total_amount;
+        if (cariSnaps[String(newData.cari_id)]?.exists()) {
+          transaction.update(newCariRef, {
+            balance: increment(newBalanceApply),
+            updatedAt: Timestamp.now()
+          });
+        }
+      }
+
+      // FaturayÄ± gÃ¶ncelle
+      transaction.update(invoiceRef, {
+        ...newData,
+        updatedAt: Timestamp.now()
+      });
+
+      return { success: true };
+    });
+  } catch (error: any) {
+    if (!isPermissionDeniedError(error)) {
+      throw error;
     }
 
-    // Cari bakiye göncelle
-    if (oldData.cari_id) {
-      const oldCariRef = doc(db, COLLECTIONS.CARIS, String(oldData.cari_id));
-      const oldBalanceBack = oldData.type === 'Satış' ? -oldData.total_amount : oldData.total_amount;
-      transaction.update(oldCariRef, { balance: increment(oldBalanceBack) });
-    }
-    if (newData.cari_id) {
-      const newCariRef = doc(db, COLLECTIONS.CARIS, String(newData.cari_id));
-      const newBalanceApply = newData.type === 'Satış' ? newData.total_amount : -newData.total_amount;
-      transaction.update(newCariRef, { balance: increment(newBalanceApply) });
-    }
-
-    // Faturayı göncelle
-    transaction.update(invoiceRef, {
+    const invoiceRef = doc(db, COLLECTIONS.INVOICES, String(id));
+    await updateDoc(invoiceRef, {
       ...newData,
       updatedAt: Timestamp.now()
     });
-
-    return { success: true };
-  });
+    return { success: true, fallback: true };
+  }
 };
 
-// Transaction İşlemleri
+// Transaction Ä°ÅŸlemleri
 export const getTransactions = async () => {
   try {
     const uid = getCurrentUserId();
@@ -555,7 +647,7 @@ export const getTransactions = async () => {
     const transactions = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
     console.log('Transactions fetched:', transactions.length);
 
-    // Tarih sıralamasını client-side yap
+    // Tarih sÄ±ralamasÄ±nÄ± client-side yap
     transactions.sort((a: any, b: any) => {
       const dateA = a.date || '';
       const dateB = b.date || '';
@@ -583,10 +675,10 @@ export const addTransaction = async (data: any) => {
         createdAt: Timestamp.now()
       });
 
-      // Cari bakiye guöncelleme
+      // Cari bakiye guÃ¶ncelleme
       if (data.cari_id) {
         const cariRef = doc(db, COLLECTIONS.CARIS, String(data.cari_id));
-        // TAHSİLAT (Alacak) bakiyeyi azaltır (-), ÖDEME (Borç) bakiyeyi artırır (+)
+        // TAHSÄ°LAT (Alacak) bakiyeyi azaltÄ±r (-), Ã–DEME (BorÃ§) bakiyeyi artÄ±rÄ±r (+)
         const balanceChange = isAlacak(data.type) ? -data.amount : data.amount;
 
         transaction.update(cariRef, {
@@ -597,13 +689,13 @@ export const addTransaction = async (data: any) => {
 
       // Kasa kaydi
       const kasaRef = doc(collection(db, COLLECTIONS.KASA));
-      const kasaType = isAlacak(data.type) ? 'Giriş' : 'Çıkış';
+      const kasaType = isAlacak(data.type) ? 'GiriÅŸ' : 'Ã‡Ä±kÄ±ÅŸ';
 
       transaction.set(kasaRef, {
         type: kasaType,
         amount: data.amount,
         date: data.date,
-        description: `Cari İşlem: ${data.description || 'Açıklama yok'}`,
+        description: `Cari Ä°ÅŸlem: ${data.description || 'AÃ§Ä±klama yok'}`,
         userId: uid,
         createdAt: Timestamp.now()
       });
@@ -622,13 +714,13 @@ export const deleteTransaction = async (id: string) => {
   try {
     const uid = getCurrentUserId();
 
-    // Önce transaction verisini oku
-    const transRef = doc(db, COLLECTIONS.TRANSACTIONS, id);
+    // Ã–nce transaction verisini oku
+    const transRef = doc(db, COLLECTIONS.TRANSACTIONS, String(id));
     const transSnap = await getDoc(transRef);
-    if (!transSnap.exists()) throw new Error('Hareket bulunamadı');
+    if (!transSnap.exists()) throw new Error('Hareket bulunamadÄ±');
     const data = transSnap.data();
 
-    // Kasa kaydını bul (transaction dışında, userId filtreli)
+    // Kasa kaydÄ±nÄ± bul (transaction dÄ±ÅŸÄ±nda, userId filtreli)
     let kasaDocRef: any = null;
     try {
       const kasaQuery = query(
@@ -640,7 +732,7 @@ export const deleteTransaction = async (id: string) => {
       const kasaSnapshot = await getDocs(kasaQuery);
       const found = kasaSnapshot.docs.find(d => {
         const desc = d.data().description || '';
-        return desc.includes('Cari İşlem');
+        return desc.includes('Cari Ä°ÅŸlem');
       });
       if (found) kasaDocRef = found.ref;
     } catch (_) { /* kasa bulunamazsa devam et */ }
@@ -651,63 +743,88 @@ export const deleteTransaction = async (id: string) => {
       if (data.cari_id) {
         const cariRef = doc(db, COLLECTIONS.CARIS, String(data.cari_id));
         const balanceCorrection = isAlacak(data.type) ? data.amount : -data.amount;
-        transaction.update(cariRef, {
-          balance: increment(balanceCorrection),
-          updatedAt: Timestamp.now()
-        });
+        const cariSnap = await transaction.get(cariRef);
+        if (cariSnap.exists()) {
+          transaction.update(cariRef, {
+            balance: increment(balanceCorrection),
+            updatedAt: Timestamp.now()
+          });
+        }
       }
-      // Kasa kaydını sil
+      // Kasa kaydÄ±nÄ± sil
       if (kasaDocRef) transaction.delete(kasaDocRef);
       // Hareketi sil
       transaction.delete(transRef);
     });
 
     return { success: true };
-  } catch (error) {
-    console.error('deleteTransaction failed:', error);
-    throw error;
+  } catch (error: any) {
+    if (!isPermissionDeniedError(error)) {
+      console.error('deleteTransaction failed:', error);
+      throw error;
+    }
+
+    const transRef = doc(db, COLLECTIONS.TRANSACTIONS, String(id));
+    await deleteDoc(transRef);
+    return { success: true, fallback: true };
   }
 };
 
 export const updateTransaction = async (id: string, newData: any) => {
   try {
-    return await runTransaction(db, async (transaction) => {
-      const transRef = doc(db, COLLECTIONS.TRANSACTIONS, id);
-      const transSnap = await transaction.get(transRef);
+    const uid = getCurrentUserId();
+    const transRef = doc(db, COLLECTIONS.TRANSACTIONS, String(id));
 
-      if (!transSnap.exists()) {
-        throw new Error('Güncellenecek hareket bulunamadı');
+    // Kasa kaydını transaction DIŞINDA bul
+    let kasaDocRef: any = null;
+    try {
+      const transSnap = await getDoc(transRef);
+      if (transSnap.exists()) {
+        const oldData = transSnap.data();
+        const kasaQuery = query(
+          collection(db, COLLECTIONS.KASA),
+          where('userId', '==', uid),
+          where('date', '==', oldData.date),
+          where('amount', '==', oldData.amount)
+        );
+        const kasaSnapshot = await getDocs(kasaQuery);
+        const found = kasaSnapshot.docs.find(d => {
+          const desc = String(d.data().description || '');
+          return desc.includes('Cari') || desc.includes(String(oldData.description || ''));
+        });
+        if (found) kasaDocRef = found.ref;
       }
+    } catch (_) { /* kasa bulunamazsa devam et */ }
 
+    return await runTransaction(db, async (transaction) => {
+      const transSnap = await transaction.get(transRef);
+      if (!transSnap.exists()) throw new Error('Güncellenecek hareket bulunamadı');
       const oldData = transSnap.data();
 
-      // 1. Eski cari bakiye etkisini geri al
-      if (oldData.cari_id) {
-        const oldCariRef = doc(db, COLLECTIONS.CARIS, String(oldData.cari_id));
-        // Alacak girilmişti (-), geri alırken + yapıyoruz. Borç + girilmişti, - yapıyoruz.
+      // Tüm READ'ler önce
+      const oldCariRef = oldData.cari_id ? doc(db, COLLECTIONS.CARIS, String(oldData.cari_id)) : null;
+      const newCariRef = newData.cari_id ? doc(db, COLLECTIONS.CARIS, String(newData.cari_id)) : null;
+
+      const oldCariSnap = oldCariRef ? await transaction.get(oldCariRef) : null;
+      const newCariSnap = (newCariRef && newCariRef.path !== oldCariRef?.path) ? await transaction.get(newCariRef) : null;
+
+      // Tüm WRITE'lar sonra
+      if (oldCariRef && oldCariSnap?.exists()) {
         const oldCorrection = isAlacak(oldData.type) ? oldData.amount : -oldData.amount;
-        transaction.update(oldCariRef, { balance: increment(oldCorrection) });
+        transaction.update(oldCariRef, { balance: increment(oldCorrection), updatedAt: Timestamp.now() });
       }
 
-      // 2. Yeni cari bakiye etkisini uygula
-      if (newData.cari_id) {
-        const newCariRef = doc(db, COLLECTIONS.CARIS, String(newData.cari_id));
-        const newApply = isAlacak(newData.type) ? -newData.amount : newData.amount;
-        transaction.update(newCariRef, { balance: increment(newApply) });
+      if (newCariRef) {
+        const targetSnap = newCariSnap || oldCariSnap;
+        if (targetSnap?.exists()) {
+          const newApply = isAlacak(newData.type) ? -newData.amount : newData.amount;
+          transaction.update(newCariRef, { balance: increment(newApply), updatedAt: Timestamp.now() });
+        }
       }
 
-      // 3. Kasa kaydını göncelle
-      const kasaQuery = query(
-        collection(db, COLLECTIONS.KASA),
-        where('date', '==', oldData.date),
-        where('amount', '==', oldData.amount)
-      );
-      const kasaSnapshot = await getDocs(kasaQuery);
-      const targetKasaDoc = kasaSnapshot.docs.find(d => d.data().description.includes(oldData.description) || d.data().description.includes('Cari İşlem'));
-
-      if (targetKasaDoc) {
+      if (kasaDocRef) {
         const kasaType = isAlacak(newData.type) ? 'Giriş' : 'Çıkış';
-        transaction.update(targetKasaDoc.ref, {
+        transaction.update(kasaDocRef, {
           type: kasaType,
           amount: newData.amount,
           date: newData.date,
@@ -716,20 +833,23 @@ export const updateTransaction = async (id: string, newData: any) => {
         });
       }
 
-      // 4. Hareketi göncelle
-      transaction.update(transRef, {
-        ...newData,
-        updatedAt: Timestamp.now()
-      });
-
+      transaction.update(transRef, { ...newData, updatedAt: Timestamp.now() });
       return { success: true };
     });
   } catch (error) {
-    console.error('updateTransaction failed:', error);
-    throw error;
+    if (!isPermissionDeniedError(error)) {
+      console.error('updateTransaction failed:', error);
+      throw error;
+    }
+
+    const transRef = doc(db, COLLECTIONS.TRANSACTIONS, String(id));
+    await updateDoc(transRef, {
+      ...newData,
+      updatedAt: Timestamp.now()
+    });
+    return { success: true, fallback: true };
   }
 };
-
 export const recalculateCariBalance = async (cariId: string) => {
   try {
     const uid = getCurrentUserId();
@@ -749,20 +869,20 @@ export const recalculateCariBalance = async (cariId: string) => {
       .map(d => ({ id: d.id, ...d.data() as any }))
       .filter(t => String(t.cari_id) === String(cariId));
 
-    // 2. CALC total balance (Philosophy: SATIŞ +, ALIŞ -, ÖDEME/Borç +, TAHSİLAT/Alacak -)
+    // 2. CALC total balance (Philosophy: SATIÅ +, ALIÅ -, Ã–DEME/BorÃ§ +, TAHSÄ°LAT/Alacak -)
     let total = 0;
     
     invoices.forEach(inv => {
       const amount = Number(inv.total_amount || 0);
-      if (inv.type === 'Satış') total += amount;
-      else if (inv.type === 'Alış') total -= amount;
+      if (inv.type === 'SatÄ±ÅŸ') total += amount;
+      else if (inv.type === 'AlÄ±ÅŸ') total -= amount;
     });
 
     transactions.forEach(t => {
-      if (t.isInvoice) return; // Fatura hareketlerini faturalar kısmında saydık zaten
+      if (t.isInvoice) return; // Fatura hareketlerini faturalar kÄ±smÄ±nda saydÄ±k zaten
       const amount = Number(t.amount || 0);
       if (t.type === 'Alacak') total -= amount; // Tahsilat
-      else if (t.type === 'Borç') total += amount; // Ödeme
+      else if (t.type === 'BorÃ§') total += amount; // Ã–deme
     });
 
     // 3. UPDATE cari doc
@@ -778,7 +898,7 @@ export const recalculateCariBalance = async (cariId: string) => {
   }
 };
 
-// Settings İşlemleri (Tm ayarlar artık tek bir dokümanda: settings/uid)
+// Settings Ä°ÅŸlemleri (Tm ayarlar artÄ±k tek bir dokÃ¼manda: settings/uid)
 export const getSettings = async () => {
   const uid = getCurrentUserId();
   const docRef = doc(db, COLLECTIONS.SETTINGS, uid);
@@ -803,47 +923,28 @@ export const updateSettings = async (settings: any) => {
   return { success: true };
 };
 
-// Kullanıcıları getir
+// KullanÄ±cÄ±larÄ± getir
 export const getUsers = async () => {
-  const uid = getCurrentUserId();
   const usersRef = collection(db, COLLECTIONS.USERS);
 
-  // Önce kendi kaydımızı uid ile bul
-  const qMe = query(usersRef, where('uid', '==', uid));
-  const meSnap = await getDocs(qMe);
-
-  if (meSnap.empty) {
-    // uid field yoksa doc ID ile dene
-    const meByDoc = await getDoc(doc(usersRef, uid));
-    if (!meByDoc.exists()) return [];
-    const me = meByDoc.data();
-    if (me.email === 'selahattin50@gmail.com') {
-      const snapshot = await getDocs(usersRef);
-      return snapshot.docs.map(d => ({ id: d.id, username: d.data().username, email: d.data().email, isBanned: !!d.data().isBanned }));
-    }
-    return [{ id: meByDoc.id, username: me.username, email: me.email, isBanned: !!me.isBanned }];
-  }
-
-  const me = meSnap.docs[0].data();
+  const me = await getCurrentUserRecord();
 
   if (me.email === 'selahattin50@gmail.com') {
-    const snapshot = await getDocs(usersRef);
-    return snapshot.docs.map(d => ({
-      id: d.id,
-      username: d.data().username,
-      email: d.data().email,
-      isBanned: !!d.data().isBanned
-    }));
+    try {
+      const snapshot = await getDocs(usersRef);
+      const users = snapshot.docs
+        .map(d => mapUserDoc(d.id, d.data()))
+        .sort((a, b) => a.email.localeCompare(b.email, 'tr-TR'));
+      return users.length > 0 ? users : [me];
+    } catch (error) {
+      console.warn('TÃ¼m kullanÄ±cÄ±lar okunamadÄ±, mevcut kullanÄ±cÄ± gÃ¶sterilecek:', error);
+      return [me];
+    }
   }
 
-  return [{
-    id: meSnap.docs[0].id,
-    username: me.username,
-    email: me.email,
-    isBanned: !!me.isBanned
-  }];
+  return [me];
 };
-// Kullanıcıları tüm detaylarıyla getir (Migration için)
+// KullanÄ±cÄ±larÄ± tÃ¼m detaylarÄ±yla getir (Migration iÃ§in)
 export const getFullUsers = async () => {
   const snapshot = await getDocs(collection(db, COLLECTIONS.USERS));
   return snapshot.docs.map(doc => ({
@@ -923,7 +1024,7 @@ export const migrateUserData = async (fromEmail: string, toEmail: string) => {
   }
 };
 
-// Sistem genelindeki tüm verileri kontrol et - sadece mevcut kullanıcının verileri
+// Sistem genelindeki tÃ¼m verileri kontrol et - sadece mevcut kullanÄ±cÄ±nÄ±n verileri
 export const scanAllFirestoreData = async () => {
   const uid = getCurrentUserId();
   const collectionsList = [COLLECTIONS.CARIS, COLLECTIONS.STOCKS, COLLECTIONS.INVOICES, COLLECTIONS.KASA, COLLECTIONS.TRANSACTIONS];
@@ -944,7 +1045,7 @@ export const scanAllFirestoreData = async () => {
   return results;
 };
 
-// Kullanıcı hesabını (Firestore kaydın1) sil
+// KullanÄ±cÄ± hesabÄ±nÄ± (Firestore kaydÄ±n1) sil
 export const deleteUserAccount = async (userId: string) => {
   try {
     await deleteDoc(doc(db, COLLECTIONS.USERS, userId));
@@ -968,7 +1069,7 @@ export const toggleUserBanStatus = async (userId: string, isBanned: boolean) => 
   }
 };
 
-// Yerel (Offline) verileri Firebase'e toplu yükle
+// Yerel (Offline) verileri Firebase'e toplu yÃ¼kle
 export const batchUploadLocalData = async (type: string, data: any[]) => {
   const uid = getCurrentUserId();
   let count = 0;
@@ -983,7 +1084,7 @@ export const batchUploadLocalData = async (type: string, data: any[]) => {
   if (!collName) return 0;
 
   for (const item of data) {
-    // ID alanını çıkar (Firebase yeni ID verecek)
+    // ID alanÄ±nÄ± Ã§Ä±kar (Firebase yeni ID verecek)
     const { id, ...cleanData } = item;
     await addDoc(collection(db, collName), {
       ...cleanData,
@@ -1019,10 +1120,10 @@ export const recalculateAllCariBalances = async () => {
     const cariInvoices = invoices.filter(inv => String(inv.cari_id) === String(cariId));
     for (const inv of cariInvoices) {
       const amount = Number(inv.total_amount) || 0;
-      balance += (inv.type === 'Satış' ? amount : -amount);
+      balance += (inv.type === 'SatÄ±ÅŸ' ? amount : -amount);
     }
 
-    // Hareket etkileri (Düzeltilmiş mantık: Ödeme/Borç +, Tahsilat/Alacak -)
+    // Hareket etkileri (DÃ¼zeltilmiÅŸ mantÄ±k: Ã–deme/BorÃ§ +, Tahsilat/Alacak -)
     const cariTrans = transactions.filter(t => String(t.cari_id) === String(cariId));
     for (const t of cariTrans) {
       const amount = Number(t.amount) || 0;
@@ -1047,3 +1148,4 @@ export const updateUserRole = async (userId: string, role: string) => {
     throw error;
   }
 };
+

@@ -128,6 +128,16 @@ interface Invoice {
   }>;
 }
 
+type InvoiceItemForm = {
+  stok_id: string | number;
+  qty: number;
+  unit_type: 'base' | 'alt';
+  price: number;
+  discount: number;
+  tax: number;
+  price_input?: string;
+};
+
 const normalizeUser = (user: User | null) => { if (!user) return null; return { ...user }; };
 
 const normalizeKasaType = (type: string | null | undefined): 'Giriş' | 'Çıkış' => {
@@ -500,16 +510,8 @@ const createA5InvoicePDF = (invoiceData: any, stocks: any[], caris: Cari[] = [])
     // Fiyat her zaman temel birim (ADET) ba?na girilir.
     // temelMiktar = qty  ?arpan; indFiyat? = fiyat  (1-isk%)
     // KDVsiz = temelMiktar  indFiyat?; KDVli = KDVsiz  (1+kdv%)
-    const taxRate = item.tax || 0;
     const factor = stok?.conversion_factor || 1;
-    const realQty = item.unit_type === 'alt' ? item.qty * factor : item.qty;
-
-    const indFiyati = item.price * (1 - (item.discount || 0) / 100);
-    const grossAmount = Math.round(realQty * item.price * 100) / 100;
-    const subtotal = Math.round(realQty * indFiyati * 100) / 100;
-    const discountAmount = Math.round((grossAmount - subtotal) * 100) / 100;
-    const taxAmount = Math.round(subtotal * (taxRate / 100) * 100) / 100;
-    const lineTotal = Math.round((subtotal + taxAmount) * 100) / 100;
+    const { realQty, lineTotal } = getInvoiceLineCalc(item, factor);
 
     return [
       index + 1,
@@ -585,19 +587,12 @@ const createA5InvoicePDF = (invoiceData: any, stocks: any[], caris: Cari[] = [])
   pdfInvoice.items.forEach((item: any) => {
     const stok = stocks.find(s => String(s.id) === String(item.stok_id));
     const factor = stok?.conversion_factor || 1;
-    const taxRate = item.tax || 0;
-    const realQty = item.unit_type === 'alt' ? item.qty * factor : item.qty;
+    const { grossAmount, subtotal, discountAmount, taxAmount } = getInvoiceLineCalc(item, factor);
 
-    const indFiyati = item.price * (1 - (item.discount || 0) / 100);
-    const gross = Math.round(realQty * item.price * 100) / 100;
-    const sub = Math.round(realQty * indFiyati * 100) / 100;
-    const disc = Math.round((gross - sub) * 100) / 100;
-    const tax = Math.round(sub * (taxRate / 100) * 100) / 100;
-
-    grossTotal += gross;
-    discountTotal += disc;
-    subTotal += sub;
-    kdvTotal += tax;
+    grossTotal += grossAmount;
+    discountTotal += discountAmount;
+    subTotal += subtotal;
+    kdvTotal += taxAmount;
   });
 
   // Calculate the widest line to determine box width (A6 larger fonts)
@@ -766,16 +761,10 @@ const shareInvoiceOnWhatsApp = async (invoiceData: any, stocks: any[], caris: Ca
     const itemsText = invoiceData.items.map((item: any) => {
       const stok = stocks.find(s => String(s.id) === String(item.stok_id));
       const factor = stok?.conversion_factor || 1;
-      const realQty = item.unit_type === 'alt' ? item.qty * factor : item.qty;
-      const indFiyati = item.price * (1 - (item.discount || 0) / 100);
-      const grossAmount = Math.round(realQty * item.price * 100) / 100;
-      const sub = Math.round(realQty * indFiyati * 100) / 100;
-      const discountAmount = Math.round((grossAmount - sub) * 100) / 100;
-      const taxAmount = Math.round(sub * ((item.tax || 0) / 100) * 100) / 100;
-      const lineTotal = sub + taxAmount;
+      const { lineTotal } = getInvoiceLineCalc(item, factor);
       const unitLabel = item.unit_type === 'base' ? stok?.base_unit : stok?.alt_unit;
 
-      return `- ${fixTR(stok?.name || 'Ürün')}\n  ${item.qty} ${fixTR(unitLabel)} x ₺${item.price.toLocaleString('tr-TR')} = ₺${lineTotal.toLocaleString('tr-TR')}`;
+      return `- ${fixTR(stok?.name || 'Ürün')}\n  ${item.qty} ${fixTR(unitLabel)} x ₺${normalizePriceForCalc(item.price).toLocaleString('tr-TR', { minimumFractionDigits: 3, maximumFractionDigits: 3 })} = ₺${lineTotal.toLocaleString('tr-TR')}`;
     }).join('\n');
 
     const formatCurrency = (amount: number) => {
@@ -1143,6 +1132,58 @@ const safeBalance = (balance: any): number => {
   return isNaN(parsed) ? 0 : parsed;
 };
 
+const roundTo = (value: number, digits: number) => {
+  const factor = 10 ** digits;
+  return Math.round((Number(value) || 0) * factor) / factor;
+};
+
+const normalizePriceForCalc = (value: any) => roundTo(Number(value) || 0, 3);
+
+const formatPriceInputValue = (value: any) => normalizePriceForCalc(value).toFixed(3).replace('.', ',');
+
+const parsePriceInputValue = (value: string) => {
+  const cleaned = String(value || '')
+    .replace(/[^0-9,.\-]/g, '')
+    .replace(',', '.');
+
+  if (!cleaned || cleaned === '.' || cleaned === '-')
+    return null;
+
+  const parsed = Number(cleaned);
+  return Number.isFinite(parsed) ? normalizePriceForCalc(parsed) : null;
+};
+
+const getInvoiceLineCalc = (
+  item: { qty: number; unit_type: 'base' | 'alt'; price: number; discount?: number; tax?: number },
+  conversionFactor: number
+) => {
+  const factor = Number(conversionFactor) || 1;
+  const rawQty = Number(item?.qty) || 0;
+  const realQty = item?.unit_type === 'alt' ? rawQty * factor : rawQty;
+  const unitPrice = normalizePriceForCalc(item?.price);
+  const discountRate = Number(item?.discount) || 0;
+  const taxRate = Number(item?.tax) || 0;
+  const discountedUnitPrice = roundTo(unitPrice * (1 - discountRate / 100), 3);
+  const grossAmount = roundTo(realQty * unitPrice, 2);
+  const subtotal = roundTo(realQty * discountedUnitPrice, 2);
+  const discountAmount = roundTo(grossAmount - subtotal, 2);
+  const taxAmount = roundTo(subtotal * (taxRate / 100), 2);
+  const lineTotal = roundTo(subtotal + taxAmount, 2);
+
+  return {
+    factor,
+    realQty,
+    unitPrice,
+    discountedUnitPrice,
+    grossAmount,
+    subtotal,
+    discountAmount,
+    taxAmount,
+    taxRate,
+    lineTotal,
+  };
+};
+
 const normalizeInvoiceItems = (items: any): Invoice['items'] => {
   let parsedItems = items;
 
@@ -1249,10 +1290,75 @@ const mergeStocksByIdentity = (stocks: Stok[]) => {
   return Array.from(merged.values());
 };
 
+const getStockIdentityKey = (stock: Pick<Stok, 'code' | 'name'>) =>
+  `${normalizeCompare(stock.code)}__${normalizeCompare(stock.name)}`;
+
+const buildStockUsageMap = (invoices: Invoice[]) => {
+  const usage = new Map<string, { invoiceCount: number; lineCount: number }>();
+  const invoiceSets = new Map<string, Set<string>>();
+
+  invoices.forEach((invoice) => {
+    (invoice.items || []).forEach((item) => {
+      const stockId = String(item?.stok_id ?? '').trim();
+      if (!stockId) return;
+
+      const entry = usage.get(stockId) || { invoiceCount: 0, lineCount: 0 };
+      entry.lineCount += 1;
+
+      let relatedInvoices = invoiceSets.get(stockId);
+      if (!relatedInvoices) {
+        relatedInvoices = new Set<string>();
+        invoiceSets.set(stockId, relatedInvoices);
+      }
+
+      if (!relatedInvoices.has(String(invoice.id))) {
+        relatedInvoices.add(String(invoice.id));
+        entry.invoiceCount += 1;
+      }
+
+      usage.set(stockId, entry);
+    });
+  });
+
+  return usage;
+};
+
+const buildDuplicateStockCountMap = (stocks: Stok[]) => {
+  const duplicateCounts = new Map<string, number>();
+
+  stocks.forEach((stock) => {
+    const key = getStockIdentityKey(stock);
+    duplicateCounts.set(key, (duplicateCounts.get(key) || 0) + 1);
+  });
+
+  return duplicateCounts;
+};
+
+const getMissingStockReferenceStats = (stocks: Stok[], invoices: Invoice[]) => {
+  const stockIds = new Set(stocks.map((stock) => String(stock.id)));
+  const affectedInvoices = new Set<string>();
+  let lineCount = 0;
+
+  invoices.forEach((invoice) => {
+    (invoice.items || []).forEach((item) => {
+      const stockId = String(item?.stok_id ?? '').trim();
+      if (!stockId || stockIds.has(stockId)) return;
+      lineCount += 1;
+      affectedInvoices.add(String(invoice.id));
+    });
+  });
+
+  return {
+    invoiceCount: affectedInvoices.size,
+    lineCount,
+  };
+};
+
 
 
 const generateMovementPDF = async (tx: any, cariName: string, settings: any) => {
-  const isBorc = tx.type === 'Borç';
+  const raw = String(tx.type || '').toLowerCase().trim();
+  const isBorc = raw === 'borc' || raw === 'borç' || raw.startsWith('bor');
   const belgeAdi = isBorc ? 'ÖDEME BELGESİ' : 'TAHSİLAT BELGESİ';
   const firmaAdi = settings?.company_name || 'Ön Muhasebe';
   const firmaAdres = settings?.address || '';
@@ -1350,7 +1456,7 @@ const BackButton = ({ onClick }: { onClick: () => void }) => (
 );
 
 const InventoryView = ({ stocks }: { stocks: Stok[] }) => {
-  const [mode, setMode] = React.useState<'adet' | 'koli'>('adet');
+  const [mode, setMode] = React.useState<'adet' | 'koli'>('koli');
   // Sıfır hariç hepsini göster (negatif dahil)
   const filtered = mergeStocksByIdentity(stocks)
     .filter(s => safeBalance(s.quantity) !== 0)
@@ -1371,16 +1477,10 @@ const InventoryView = ({ stocks }: { stocks: Stok[] }) => {
     <div>
       <div className="flex gap-2 p-2 pb-0">
         <button
-          onClick={() => setMode('adet')}
-          className={`flex-1 py-2 rounded-xl font-black text-sm uppercase tracking-wide transition-all ${mode === 'adet' ? 'bg-indigo-600 text-white shadow' : 'bg-slate-100 text-slate-500'}`}
+          onClick={() => setMode(currentMode => currentMode === 'koli' ? 'adet' : 'koli')}
+          className="flex-1 py-2 rounded-xl font-black text-sm uppercase tracking-wide transition-all bg-indigo-600 text-white shadow"
         >
-          Adet Bazında
-        </button>
-        <button
-          onClick={() => setMode('koli')}
-          className={`flex-1 py-2 rounded-xl font-black text-sm uppercase tracking-wide transition-all ${mode === 'koli' ? 'bg-indigo-600 text-white shadow' : 'bg-slate-100 text-slate-500'}`}
-        >
-          Koli Bazında
+          {mode === 'koli' ? 'Koli Bazında' : 'Adet Bazında'}
         </button>
       </div>
       <div className="divide-y divide-slate-100 mt-2">
@@ -1429,7 +1529,7 @@ export default function App() {
   const [editingStok, setEditingStok] = useState<Stok | null>(null);
   const [editingCari, setEditingCari] = useState<Cari | null>(null);
   const [invoiceType, setInvoiceType] = useState<'Alış' | 'Satış'>('Satış');
-  const [invoiceItems, setInvoiceItems] = useState<{ stok_id: string | number, qty: number, unit_type: 'base' | 'alt', price: number, discount: number, tax: number }[]>([]);
+  const [invoiceItems, setInvoiceItems] = useState<InvoiceItemForm[]>([]);
   const [selectedCariId, setSelectedCariId] = useState<string | number | ''>('');
   const [isCariModalOpen, setIsCariModalOpen] = useState(false);
   const [isStokModalOpen, setIsStokModalOpen] = useState(false);
@@ -1438,6 +1538,9 @@ export default function App() {
   const [selectedInvoice, setSelectedInvoice] = useState<any>(null);
   const [isInvoiceDetailOpen, setIsInvoiceDetailOpen] = useState(false);
   const [isEditingInvoice, setIsEditingInvoice] = useState(false);
+  const stockUsageMap = buildStockUsageMap(invoices);
+  const duplicateStockCountMap = buildDuplicateStockCountMap(stocks);
+  const missingStockReferenceStats = getMissingStockReferenceStats(stocks, invoices);
 
   // Cari payment/movement states
   const [selectedCariForPayment, setSelectedCariForPayment] = useState<string | number | null>(null);
@@ -1600,6 +1703,9 @@ export default function App() {
       ]);
 
       const normalizedInvoices = invoices.map(normalizeInvoice);
+      const safeUsers = Array.isArray(users) && users.length > 0
+        ? users
+        : (user ? [{ id: user.id, username: user.username, email: user.email }] : []);
       const computedStocks = computeStockQuantities(stocks, normalizedInvoices);
       const computedCaris = computeCariBalances(caris, normalizedInvoices, transactions);
       const sortedCaris = sortCarisByCode(computedCaris);
@@ -1607,7 +1713,7 @@ export default function App() {
       setStocks(computedStocks);
       setKasaData(kasa);
       setInvoices(normalizedInvoices);
-      setAllUsers(users);
+      setAllUsers(safeUsers);
       setSettings(settings);
       setTransactions(transactions);
 
@@ -1616,7 +1722,7 @@ export default function App() {
       localStorage.setItem('stocks', JSON.stringify(computedStocks));
       localStorage.setItem('kasa', JSON.stringify(kasa));
       localStorage.setItem('invoices', JSON.stringify(normalizedInvoices));
-      localStorage.setItem('users', JSON.stringify(users));
+      localStorage.setItem('users', JSON.stringify(safeUsers));
       localStorage.setItem('settings', JSON.stringify(settings));
       localStorage.setItem('transactions', JSON.stringify(transactions));
     } catch (error) {
@@ -2642,6 +2748,8 @@ export default function App() {
   const renderStok = () => {
     const sortedStocks = [...stocks].sort((a, b) => a.code.localeCompare(b.code));
     const currentIndex = editingStok ? sortedStocks.findIndex(s => s.id === editingStok.id) : -1;
+    const editingStockUsage = editingStok ? stockUsageMap.get(String(editingStok.id)) : undefined;
+    const editingDuplicateCount = editingStok ? (duplicateStockCountMap.get(getStockIdentityKey(editingStok)) || 1) : 1;
 
     const navigateStok = (direction: 'next' | 'prev') => {
       const newIndex = direction === 'next' ? currentIndex + 1 : currentIndex - 1;
@@ -2749,6 +2857,12 @@ export default function App() {
                 </div>
 
                 <div className={`flex-1 overflow-y-auto ${subView === 'list' ? 'p-0' : 'p-2'}`}>
+                  {missingStockReferenceStats.lineCount > 0 && (
+                    <div className="mx-2 mt-2 rounded-2xl border border-rose-200 bg-rose-50 px-3 py-2 text-[11px] font-bold text-rose-700">
+                      {missingStockReferenceStats.invoiceCount} faturada toplam {missingStockReferenceStats.lineCount} satır silinmiş stok kartına bağlı.
+                      Bu yüzden envanter eksik görünebilir; bu kayıtlar manuel kontrol gerektirir.
+                    </div>
+                  )}
                   {subView === 'add' || (subView === 'edit' && editingStok) ? (
                     <form
                       key={editingStok?.id || 'new'}
@@ -2765,6 +2879,10 @@ export default function App() {
 
                         const payload = {
                           ...data,
+                          code: String(data.code || '').trim().toUpperCase(),
+                          name: String(data.name || '').trim(),
+                          base_unit: String(data.base_unit || '').trim(),
+                          alt_unit: String(data.alt_unit || '').trim() || null,
                           purchase_price_without_tax: getFloat(data.purchase_without_tax),
                           purchase_price: getFloat(data.purchase_price),
                           sale_price: data.sale_price ? getFloat(data.sale_price) : 0,
@@ -2776,6 +2894,16 @@ export default function App() {
                         };
 
                         try {
+                          const duplicateByCode = stocks.find((stock) =>
+                            normalizeCompare(stock.code) === normalizeCompare(payload.code) &&
+                            String(stock.id) !== String(editingStok?.id ?? '')
+                          );
+
+                          if (duplicateByCode) {
+                            alert(`Bu stok kodu zaten kullanılıyor: ${duplicateByCode.code} - ${duplicateByCode.name}`);
+                            return;
+                          }
+
                           if (subView === 'edit' && editingStok) {
                             await API.updateStockById(editingStok.id, payload);
                             await fetchData();
@@ -2884,9 +3012,29 @@ export default function App() {
                             >
                               <ChevronLeft size={18} />
                             </button>
+                          </>
+                        )}
+                        <button type="submit" className="btn-primary flex-1 py-2.5 text-sm shadow-lg shadow-indigo-500/20 flex items-center justify-center gap-2 text-white font-bold uppercase tracking-widest">
+                          <Settings size={16} />
+                          {subView === 'edit' ? 'GÜNCELLE' : 'KAYDET'}
+                        </button>
+                        {subView === 'edit' && (
+                          <>
+                            <button
+                              type="button"
+                              onClick={() => navigateStok('next')}
+                              disabled={currentIndex >= sortedStocks.length - 1}
+                              className="btn-secondary px-3 py-2 flex items-center justify-center gap-2 disabled:opacity-30"
+                            >
+                              <ChevronRight size={20} />
+                            </button>
                             <button
                               type="button"
                               onClick={async (e) => {
+                                if (editingStockUsage?.lineCount) {
+                                  alert('İşlem yapılmış kart silinmez.');
+                                  return;
+                                }
                                 if (window.confirm(`${editingStok?.name} stok kartını silmek istediğinize emin misiniz?`)) {
                                   try {
                                     await API.deleteStockById(editingStok!.id);
@@ -2899,25 +3047,11 @@ export default function App() {
                                   }
                                 }
                               }}
-                              className="btn-secondary px-3 py-2 flex items-center justify-center gap-2 bg-red-50 hover:bg-red-100 text-red-600 border-red-200"
+                              className="px-3 py-2 flex items-center justify-center gap-2 rounded-xl border bg-red-500 hover:bg-red-600 text-white border-red-700 shadow-sm"
                             >
                               <Trash2 size={16} />
                             </button>
                           </>
-                        )}
-                        <button type="submit" className="btn-primary flex-1 py-2.5 text-sm shadow-lg shadow-indigo-500/20 flex items-center justify-center gap-2 text-white font-bold uppercase tracking-widest">
-                          <Settings size={16} />
-                          {subView === 'edit' ? 'GÜNCELLE' : 'KAYDET'}
-                        </button>
-                        {subView === 'edit' && (
-                          <button
-                            type="button"
-                            onClick={() => navigateStok('next')}
-                            disabled={currentIndex >= sortedStocks.length - 1}
-                            className="btn-secondary px-3 py-2 flex items-center justify-center gap-2 disabled:opacity-30"
-                          >
-                            <ChevronRight size={20} />
-                          </button>
                         )}
                       </div>
                     </form>
@@ -2930,21 +3064,23 @@ export default function App() {
                         <div className="shrink-0 text-[11px] font-bold text-slate-700 uppercase tracking-wider text-right">Alış KDV'siz</div>
                       </div>
                       <div className="divide-y divide-slate-100">
-                        {mergeStocksByIdentity([...stocks].sort((a, b) => a.code.localeCompare(b.code))).map((s, index) => (
-                          <div
-                            key={s.id}
-                            className={`flex items-center px-2 py-1.5 cursor-pointer ${index % 2 === 0 ? 'bg-blue-50/50' : 'bg-white'}`}
-                            onClick={() => { setEditingStok(s); setSubView('edit'); }}
-                          >
-                            <div className="flex-1 min-w-0 font-black text-[15px] text-slate-900 leading-none uppercase tracking-tight whitespace-nowrap overflow-hidden text-ellipsis pr-2">
-                              <span className="text-indigo-600/50 mr-3 font-bold">{s.code}</span>
-                              {s.name}
+                        {sortedStocks.map((s, index) => {
+                          return (
+                            <div
+                              key={s.id}
+                              className={`flex items-center px-2 py-1.5 cursor-pointer ${index % 2 === 0 ? 'bg-blue-50/50' : 'bg-white'}`}
+                              onClick={() => { setEditingStok(s); setSubView('edit'); }}
+                            >
+                              <div className="flex-1 min-w-0 font-black text-[15px] text-slate-900 leading-none uppercase tracking-tight whitespace-nowrap overflow-hidden text-ellipsis pr-2">
+                                <span className="text-indigo-600/50 mr-3 font-bold">{s.code}</span>
+                                {s.name}
+                              </div>
+                              <div className="shrink-0 font-black text-[15px] text-emerald-600 whitespace-nowrap">
+                                ₺{(Number(s.purchase_price_without_tax) || Number(s.purchase_price) / (1 + (Number(s.tax_rate) || 1) / 100)).toLocaleString('tr-TR', { minimumFractionDigits: 3, maximumFractionDigits: 3 })}
+                              </div>
                             </div>
-                            <div className="shrink-0 font-black text-[15px] text-emerald-600 whitespace-nowrap">
-                              ₺{(Number(s.purchase_price_without_tax) || Number(s.purchase_price) / (1 + (Number(s.tax_rate) || 1) / 100)).toLocaleString('tr-TR', { minimumFractionDigits: 3, maximumFractionDigits: 3 })}
-                            </div>
-                          </div>
-                        ))}
+                          );
+                        })}
                       </div>
                     </div>
                   )}
@@ -3076,22 +3212,15 @@ export default function App() {
       const getLineDetails = (item: any) => {
         const stok = stocks.find(s => String(s.id) === String(item.stok_id));
         const factor = stok?.conversion_factor || 1;
-        const taxRate = item.tax || 0;
-        const realQty = item.unit_type === 'alt' ? item.qty * factor : item.qty;
-        const indFiyati = item.price * (1 - (item.discount || 0) / 100);
-        const grossAmount = Math.round(realQty * item.price * 100) / 100;
-        const subtotal   = Math.round(realQty * indFiyati * 100) / 100;
-        const discountAmount = Math.round((grossAmount - subtotal) * 100) / 100;
-        const taxAmount  = Math.round(subtotal * (taxRate / 100) * 100) / 100;
-        const lineTotal  = Math.round((subtotal + taxAmount) * 100) / 100;
-        return { grossAmount, discountAmount, subtotal, taxAmount, taxRate, realQty, lineTotal, stok };
+        const details = getInvoiceLineCalc(item, factor);
+        return { ...details, stok };
       };
 
-      const calcGross = () => invoiceItems.reduce((a, i) => a + getLineDetails(i).grossAmount, 0);
-      const calcDisc  = () => invoiceItems.reduce((a, i) => a + getLineDetails(i).discountAmount, 0);
-      const calcSub   = () => invoiceItems.reduce((a, i) => a + getLineDetails(i).subtotal, 0);
-      const calcTax   = () => invoiceItems.reduce((a, i) => a + getLineDetails(i).taxAmount, 0);
-      const calcTotal = () => calcSub() + calcTax();
+      const calcGross = () => roundTo(invoiceItems.reduce((a, i) => a + getLineDetails(i).grossAmount, 0), 2);
+      const calcDisc  = () => roundTo(invoiceItems.reduce((a, i) => a + getLineDetails(i).discountAmount, 0), 2);
+      const calcSub   = () => roundTo(invoiceItems.reduce((a, i) => a + getLineDetails(i).subtotal, 0), 2);
+      const calcTax   = () => roundTo(invoiceItems.reduce((a, i) => a + getLineDetails(i).taxAmount, 0), 2);
+      const calcTotal = () => roundTo(calcSub() + calcTax(), 2);
       const fmt = (n: number) => formatCurrency(n);
       const selectedCariData = caris.find(c => String(c.id) === String(selectedCariId));
 
@@ -3118,7 +3247,7 @@ export default function App() {
                 total_amount: total,
                 date: invoiceDate,
                 time: invoiceTime,
-                items: invoiceItems,
+                items: invoiceItems.map(({ price_input, ...item }) => item),
                 type: invoiceType
               };
               if (isEditingInvoice && selectedInvoice) {
@@ -3236,8 +3365,8 @@ export default function App() {
                       <div key={idx} className="p-2 hover:bg-slate-50/50 transition-colors">
                         <div className="flex items-center justify-between mb-1.5">
                           <div className="min-w-0 flex-1">
-                            <p className="font-black text-slate-800 text-[13px] leading-tight truncate uppercase tracking-tight">{stok?.name || '---'}</p>
-                            <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest">{stok?.code}</p>
+                            <p className="font-black text-slate-800 text-[13px] leading-tight truncate uppercase tracking-tight">{stok?.name || `Silinmiş stok (#${item.stok_id})`}</p>
+                            <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest">{stok?.code || String(item.stok_id)}</p>
                           </div>
                           <button type="button"
                             onClick={() => setInvoiceItems(invoiceItems.filter((_, i) => i !== idx))}
@@ -3261,17 +3390,34 @@ export default function App() {
                               value={item.unit_type}
                               onChange={(e) => { const n = [...invoiceItems]; n[idx].unit_type = e.target.value as 'base' | 'alt'; setInvoiceItems(n); }}
                             >
-                              <option value="base">{stok?.base_unit}</option>
+                              <option value="base">{stok?.base_unit || 'Birim'}</option>
                               {stok?.alt_unit && <option value="alt">{stok.alt_unit}</option>}
                             </select>
                           </div>
                           <div className="space-y-0.5">
                             <label className="block text-[8px] font-bold text-slate-400 uppercase text-center tracking-tighter">FİYAT</label>
-                            <input type="number"
+                            <input
+                              type="text"
+                              inputMode="decimal"
                               className="w-full bg-white border border-slate-200 rounded-lg px-1 py-1 text-center font-black text-slate-800 focus:border-indigo-400 focus:outline-none text-[11px] h-[28px]"
-                              value={item.price === 0 ? '' : String(Number(item.price))}
-                              step="0.001"
-                              onChange={(e) => { const n = [...invoiceItems]; n[idx].price = Math.round((parseFloat(e.target.value) || 0) * 1000) / 1000; setInvoiceItems(n); }}
+                              value={item.price_input ?? (item.price === 0 ? '' : formatPriceInputValue(item.price))}
+                              onChange={(e) => {
+                                const rawValue = e.target.value;
+                                const parsedPrice = parsePriceInputValue(rawValue);
+                                const n = [...invoiceItems];
+                                n[idx].price_input = rawValue;
+                                if (parsedPrice !== null) {
+                                  n[idx].price = parsedPrice;
+                                } else if (rawValue.trim() === '') {
+                                  n[idx].price = 0;
+                                }
+                                setInvoiceItems(n);
+                              }}
+                              onBlur={() => {
+                                const n = [...invoiceItems];
+                                n[idx].price_input = n[idx].price === 0 ? '' : formatPriceInputValue(n[idx].price);
+                                setInvoiceItems(n);
+                              }}
                             />
                           </div>
                         </div>
@@ -3938,25 +4084,40 @@ export default function App() {
             </div>
             {!selectedStok ? (
               <div className="flex-1 overflow-y-auto p-2">
-                {mergeStocksByIdentity(stocks).filter(s =>
+                {[...stocks].filter(s =>
                   s.name.toLowerCase().includes(modalSearch.toLowerCase()) ||
                   s.code.toLowerCase().includes(modalSearch.toLowerCase())
-                ).sort((a, b) => a.code.localeCompare(b.code, 'tr', { numeric: true })).map(s => (
-                  <button
-                    key={s.id}
-                    onClick={() => setSelectedStok(s)}
-                    className="w-full text-left p-4 hover:bg-indigo-50 rounded-2xl transition-colors flex items-center justify-between group"
-                  >
-                    <div>
-                      <p className="font-bold text-[15px] text-slate-900 group-hover:text-indigo-600 leading-tight">{s.code} - {s.name}</p>
-                      <p className="text-sm text-slate-500 mt-1">
-                        Alış: <span className="font-bold text-lg text-emerald-600">₺{(s.purchase_price_without_tax || s.purchase_price / (1 + (s.tax_rate || 1) / 100)).toFixed(3)}</span>
-                        {s.sale_price ? <> | Satış: <span className="font-bold text-lg text-indigo-600">₺{s.sale_price.toFixed(3)}</span></> : ''}
-                      </p>
-                    </div>
-                    <ChevronRight size={18} className="text-slate-300 group-hover:text-indigo-400" />
-                  </button>
-                ))}
+                ).sort((a, b) => a.code.localeCompare(b.code, 'tr', { numeric: true })).map(s => {
+                  const usage = stockUsageMap.get(String(s.id));
+                  const duplicateCount = duplicateStockCountMap.get(getStockIdentityKey(s)) || 1;
+
+                  return (
+                    <button
+                      key={s.id}
+                      onClick={() => setSelectedStok(s)}
+                      className="w-full text-left p-4 hover:bg-indigo-50 rounded-2xl transition-colors flex items-center justify-between group"
+                    >
+                      <div>
+                        <p className="font-bold text-[15px] text-slate-900 group-hover:text-indigo-600 leading-tight">{s.code} - {s.name}</p>
+                        <p className="text-sm text-slate-500 mt-1">
+                          Alış: <span className="font-bold text-lg text-emerald-600">₺{(s.purchase_price_without_tax || s.purchase_price / (1 + (s.tax_rate || 1) / 100)).toFixed(3)}</span>
+                          {s.sale_price ? <> | Satış: <span className="font-bold text-lg text-indigo-600">₺{s.sale_price.toFixed(3)}</span></> : ''}
+                        </p>
+                        <div className="mt-1 flex flex-wrap gap-1 text-[9px] font-bold uppercase tracking-wider">
+                          {duplicateCount > 1 && (
+                            <span className="rounded-full bg-amber-100 px-2 py-0.5 text-amber-700">
+                              Benzer kart: {duplicateCount}
+                            </span>
+                          )}
+                          <span className={`rounded-full px-2 py-0.5 ${usage?.lineCount ? 'bg-indigo-100 text-indigo-700' : 'bg-slate-100 text-slate-500'}`}>
+                            {usage?.lineCount ? `${usage.invoiceCount} faturada` : 'Yeni kart'}
+                          </span>
+                        </div>
+                      </div>
+                      <ChevronRight size={18} className="text-slate-300 group-hover:text-indigo-400" />
+                    </button>
+                  );
+                })}
               </div>
             ) : (
               <div className="flex flex-col h-full">
@@ -3981,13 +4142,14 @@ export default function App() {
                       } else {
                         rawPrice = selectedStok.sale_price || 0;
                       }
-                      const priceToAdd = Math.round(rawPrice * 1000) / 1000;
+                      const priceToAdd = normalizePriceForCalc(rawPrice);
 
                       setInvoiceItems([...invoiceItems, {
                         stok_id: selectedStok.id,
                         qty,
                         unit_type: unitType,
                         price: priceToAdd,
+                        price_input: formatPriceInputValue(priceToAdd),
                         discount: invoiceType === 'Alış' ? (selectedStok.purchase_discount || 0) : (selectedStok.sale_discount || 0),
                         tax: taxRate
                       }]);
@@ -4087,29 +4249,21 @@ export default function App() {
                   </thead>
                   <tbody className="divide-y divide-slate-50">
                     {selectedInvoice.items?.map((item: any, idx: number) => {
-                      const stok = stocks.find(s => s.id === item.stok_id);
+                      const stok = stocks.find(s => String(s.id) === String(item.stok_id));
                       const factor = stok?.conversion_factor || 1;
-                      const taxRate = item.tax || 0;
-                      const realQty = item.unit_type === 'alt' ? item.qty * factor : item.qty;
-                      
-                      const basePrice = item.unit_type === 'alt' ? item.price / factor : item.price;
-                      const grossAmount = Math.round(realQty * basePrice * 100) / 100;
-                      const discountAmount = Math.round(grossAmount * (item.discount / 100) * 100) / 100;
-                      const subtotal = Math.round((grossAmount - discountAmount) * 100) / 100;
-                      const taxAmount = Math.round(subtotal * (taxRate / 100) * 100) / 100;
-                      const lineTotal = Math.round((subtotal + taxAmount) * 100) / 100;
+                      const { lineTotal } = getInvoiceLineCalc(item, factor);
 
                       return (
                         <tr key={idx} className="hover:bg-blue-50/30/50 transition-colors">
                           <td className="px-3 py-2.5">
-                            <p className="font-bold text-slate-900 text-xs line-clamp-1">{stok?.name || 'Bilinmeyen ürün'}</p>
-                            <p className="text-[9px] text-slate-400 font-mono mt-0.5">{stok?.code || '---'}</p>
+                            <p className="font-bold text-slate-900 text-xs line-clamp-1">{stok?.name || `Silinmiş stok (#${item.stok_id})`}</p>
+                            <p className="text-[9px] text-slate-400 font-mono mt-0.5">{stok?.code || String(item.stok_id)}</p>
                           </td>
                           <td className="px-3 py-2.5 text-right">
                             <p className="font-bold text-slate-900 text-xs">{item.qty} {item.unit_type === 'alt' ? stok?.alt_unit : stok?.base_unit}</p>
                           </td>
                           <td className="px-3 py-2.5 text-right">
-                            <p className="text-slate-500 text-xs">{formatCurrency(item.price)}</p>
+                            <p className="text-slate-500 text-xs">₺{normalizePriceForCalc(item.price).toLocaleString('tr-TR', { minimumFractionDigits: 3, maximumFractionDigits: 3 })}</p>
                           </td>
                           <td className="px-3 py-2.5 text-right">
                             <p className="font-bold text-indigo-600 text-xs">{formatCurrency(lineTotal)}</p>
@@ -4151,6 +4305,7 @@ export default function App() {
                     qty: i.qty,
                     unit_type: i.unit_type || 'base',
                     price: i.price,
+                    price_input: formatPriceInputValue(i.price),
                     discount: i.discount || 0,
                     tax: i.tax || 0
                   })));
@@ -4173,8 +4328,8 @@ export default function App() {
                       setIsInvoiceDetailOpen(false);
                       setSelectedInvoice(null);
                       fetchData();
-                    } catch (err) {
-                      alert('Fatura silinirken hata oluştu');
+                    } catch (err: any) {
+                      alert(`Fatura silinirken hata oluştu: ${err?.message || 'Bilinmeyen hata'}`);
                     }
                   }
                 }}

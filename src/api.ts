@@ -26,6 +26,22 @@ const generateId = () => {
   return Date.now().toString() + Math.random().toString(36).substr(2, 9);
 };
 
+const normalizeStockCode = (value: any) => String(value || '').trim().toUpperCase();
+
+const normalizeStockPayload = (data: any) => ({
+  ...data,
+  code: normalizeStockCode(data?.code),
+  name: typeof data?.name === 'string' ? data.name.trim() : data?.name,
+  base_unit: typeof data?.base_unit === 'string' ? data.base_unit.trim() : data?.base_unit,
+  alt_unit: typeof data?.alt_unit === 'string' ? (data.alt_unit.trim() || null) : data?.alt_unit,
+});
+
+const findDuplicateStockByCode = (stocks: any[], code: string, excludeId?: string) =>
+  stocks.find((stock: any) =>
+    normalizeStockCode(stock?.code) === code &&
+    String(stock?.id ?? '') !== String(excludeId ?? '')
+  );
+
 // Capacitor platformunu kontrol et
 // Login
 export const login = async (email: string, password: string, rememberMe: boolean = true) => {
@@ -191,11 +207,18 @@ export const fetchStocks = async () => {
 };
 
 export const createStock = async (data: any) => {
+  const normalizedData = normalizeStockPayload(data);
+  const duplicate = findDuplicateStockByCode(getFromLocalStorage('stocks', []), normalizedData.code);
+
+  if (duplicate) {
+    throw new Error(`Bu stok kodu zaten kullanılıyor: ${duplicate.code} - ${duplicate.name}`);
+  }
+
   if (USE_FIREBASE) {
     try {
-      const result = await FirebaseAPI.addStock(data);
+      const result = await FirebaseAPI.addStock(normalizedData);
       const stocks = getFromLocalStorage('stocks', []);
-      stocks.push({ id: result.id, ...data, quantity: data.quantity || 0 });
+      stocks.push({ id: result.id, ...normalizedData, quantity: normalizedData.quantity || 0 });
       saveToLocalStorage('stocks', stocks);
       return result;
     } catch (error) {
@@ -207,8 +230,8 @@ export const createStock = async (data: any) => {
   const stocks = getFromLocalStorage('stocks', []);
   const newStock = {
     id: generateId(),
-    ...data,
-    quantity: data.quantity || 0,
+    ...normalizedData,
+    quantity: normalizedData.quantity || 0,
     createdAt: new Date().toISOString()
   };
   stocks.push(newStock);
@@ -217,9 +240,16 @@ export const createStock = async (data: any) => {
 };
 
 export const updateStockById = async (id: string, data: any) => {
+  const normalizedData = normalizeStockPayload(data);
+  const duplicate = findDuplicateStockByCode(getFromLocalStorage('stocks', []), normalizedData.code, id);
+
+  if (duplicate) {
+    throw new Error(`Bu stok kodu zaten kullanılıyor: ${duplicate.code} - ${duplicate.name}`);
+  }
+
   if (USE_FIREBASE) {
     try {
-      await FirebaseAPI.updateStock(id, data);
+      await FirebaseAPI.updateStock(id, normalizedData);
     } catch (error) {
       console.error('Firebase error:', error);
       throw error;
@@ -229,7 +259,7 @@ export const updateStockById = async (id: string, data: any) => {
   const stocks = getFromLocalStorage('stocks', []);
   const index = stocks.findIndex((s: any) => s.id === id);
   if (index !== -1) {
-    stocks[index] = { ...stocks[index], ...data, updatedAt: new Date().toISOString() };
+    stocks[index] = { ...stocks[index], ...normalizedData, updatedAt: new Date().toISOString() };
     saveToLocalStorage('stocks', stocks);
   }
   return { success: true };
@@ -309,9 +339,9 @@ export const createInvoice = async (data: any) => {
 export const updateInvoice = async (id: string, data: any) => {
   if (USE_FIREBASE) {
     try {
-      await FirebaseAPI.updateInvoice(id, data);
+      await FirebaseAPI.updateInvoice(String(id), data);
       const invoices = getFromLocalStorage('invoices', []);
-      const index = invoices.findIndex((inv: any) => inv.id === id);
+      const index = invoices.findIndex((inv: any) => String(inv.id) === String(id));
       if (index !== -1) {
         invoices[index] = { ...invoices[index], ...data };
         saveToLocalStorage('invoices', invoices);
@@ -323,7 +353,7 @@ export const updateInvoice = async (id: string, data: any) => {
     }
   }
   const invoices = getFromLocalStorage('invoices', []);
-  const index = invoices.findIndex((inv: any) => inv.id === id);
+  const index = invoices.findIndex((inv: any) => String(inv.id) === String(id));
   if (index !== -1) {
     invoices[index] = { ...invoices[index], ...data };
     saveToLocalStorage('invoices', invoices);
@@ -334,9 +364,9 @@ export const updateInvoice = async (id: string, data: any) => {
 export const deleteInvoice = async (id: string) => {
   if (USE_FIREBASE) {
     try {
-      await FirebaseAPI.deleteInvoice(id);
+      await FirebaseAPI.deleteInvoice(String(id));
       const invoices = getFromLocalStorage('invoices', []);
-      const filtered = invoices.filter((inv: any) => inv.id !== id);
+      const filtered = invoices.filter((inv: any) => String(inv.id) !== String(id));
       saveToLocalStorage('invoices', filtered);
       return { success: true };
     } catch (error) {
@@ -345,7 +375,7 @@ export const deleteInvoice = async (id: string) => {
     }
   }
   const invoices = getFromLocalStorage('invoices', []);
-  const filtered = invoices.filter((inv: any) => inv.id !== id);
+  const filtered = invoices.filter((inv: any) => String(inv.id) !== String(id));
   saveToLocalStorage('invoices', filtered);
   return { success: true };
 };
@@ -408,7 +438,7 @@ export const updateTransaction = async (id: string, data: any) => {
   }
 
   const transactions = getFromLocalStorage('transactions', []);
-  const index = transactions.findIndex((t: any) => t.id === id);
+  const index = transactions.findIndex((t: any) => String(t.id) === String(id));
   if (index !== -1) {
     transactions[index] = { ...transactions[index], ...data, updatedAt: new Date().toISOString() };
     saveToLocalStorage('transactions', transactions);
@@ -427,7 +457,7 @@ export const deleteTransaction = async (id: string) => {
   }
 
   const transactions = getFromLocalStorage('transactions', []);
-  const filtered = transactions.filter((t: any) => t.id !== id);
+  const filtered = transactions.filter((t: any) => String(t.id) !== String(id));
   saveToLocalStorage('transactions', filtered);
   return { success: true };
 };
@@ -469,7 +499,7 @@ export const fetchUsers = async () => {
       return data;
     } catch (error) {
       console.error('Firebase error:', error);
-      throw error;
+      return getFromLocalStorage('users', []);
     }
   }
   return getFromLocalStorage('users', []);
