@@ -800,6 +800,7 @@ const capitalizeFirst = (str: string | null | undefined): string => {
 // --- Components ---
 
 const Login = ({ onLogin }: { onLogin: (user: User) => void }) => {
+  const loginLogoSrc = `${import.meta.env.BASE_URL}login-logo-clean.png?v=20260508-logo2`;
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [fullName, setFullName] = useState('');
@@ -943,15 +944,11 @@ const Login = ({ onLogin }: { onLogin: (user: User) => void }) => {
       >
         <div className={`bg-blue-50/50/95 backdrop-blur-3xl rounded-[2rem] sm:rounded-[3rem] shadow-[0_32px_120px_rgba(0,0,0,0.3)] ${isRegistering ? 'p-4 sm:p-10' : 'p-5 sm:p-10'} border border-white/40 ring-1 ring-white/20 relative overflow-hidden transition-all duration-300`}>
           <div className={`text-center ${isRegistering ? 'mb-4 sm:mb-10' : 'mb-6 sm:mb-10'} relative`}>
-            <motion.div
-              initial={{ scale: 0.5, rotate: -15 }}
-              animate={{ scale: 1, rotate: 0 }}
-              transition={{ delay: 0.3, type: "spring", damping: 10 }}
-              className={`bg-gradient-to-tr from-indigo-600 via-indigo-500 to-blue-500 ${isRegistering ? 'w-12 h-12 sm:w-20 sm:h-20 mb-2 sm:mb-8' : 'w-16 h-16 sm:w-20 sm:h-20 mb-4 sm:mb-8'} rounded-2xl sm:rounded-3xl flex items-center justify-center mx-auto shadow-2xl shadow-indigo-500/40 relative group`}
-            >
-              <div className="absolute inset-0 bg-blue-50/50/20 rounded-3xl animate-pulse group-hover:hidden" />
-              <LayoutDashboard className={`${isRegistering ? 'text-white w-7 h-7 sm:w-10 sm:h-10' : 'text-white w-10 h-10'} drop-shadow-lg`} />
-            </motion.div>
+            <img
+              src={loginLogoSrc}
+              alt="On Muhasebe logosu"
+              className={`${isRegistering ? 'w-12 h-12 sm:w-20 sm:h-20 mb-2 sm:mb-8' : 'w-16 h-16 sm:w-20 sm:h-20 mb-4 sm:mb-8'} mx-auto object-contain drop-shadow-2xl`}
+            />
 
             <h1 className={`${isRegistering ? 'text-2xl sm:text-3xl' : 'text-3xl'} font-black text-slate-800 tracking-tight mb-1 sm:mb-2`}>
               Ön Muhasebe
