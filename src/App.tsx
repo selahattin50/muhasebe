@@ -1231,9 +1231,12 @@ const computeCariBalances = (caris: Cari[], invoices: Invoice[], transactions: a
     const transactionBalance = transactions.reduce((sum, tx) => {
       if (String(tx?.cari_id ?? '') !== String(cari.id)) return sum;
       const amount = Number(tx?.amount) || 0;
-      const txType = normalizeCariTransactionType(tx?.type);
-      if (txType === 'Borç') return sum - amount;
-      if (txType === 'Alacak') return sum + amount;
+      // getCariLedgerType cari tipine göre Borç/Alacak yönünü doğru çevirir
+      const txType = getCariLedgerType(cari.type, tx?.type);
+      // TAHSİLAT (Alacak, müşteri ödedi) → bakiye azalır (-)
+      // ÖDEME (Borç, biz ödedik) → bakiye artar (+)
+      if (txType === 'Alacak') return sum - amount;
+      if (txType === 'Borç') return sum + amount;
       return sum;
     }, 0);
 
@@ -1354,10 +1357,25 @@ const getMissingStockReferenceStats = (stocks: Stok[], invoices: Invoice[]) => {
 
 
 
-const generateMovementPDF = async (tx: any, cariName: string, settings: any) => {
+const generateMovementPDF = async (tx: any, cariName: string, settings: any, cariType?: string) => {
   const raw = String(tx.type || '').toLowerCase().trim();
-  const isBorc = raw === 'borc' || raw === 'borç' || raw.startsWith('bor');
-  const belgeAdi = isBorc ? 'ÖDEME BELGESİ' : 'TAHSİLAT BELGESİ';
+  const isBorcType = raw === 'borc' || raw === 'borç' || raw.startsWith('bor');
+  const normalizedCariType = normalizeCariRole(cariType);
+
+  // Alıcı carisi: TAHSİLAT alanından işlem = Alacak tipi = tahsilat belgesi
+  // Satıcı carisi: ÖDEME alanından işlem = Borç tipi = ödeme belgesi
+  // Her iki durumda da cari bakiyesi AZALMALIDIR (ödeme/tahsilat alındı)
+  let isTahsilat: boolean;
+  if (normalizedCariType === 'Alıcı') {
+    isTahsilat = !isBorcType; // Alıcıdan gelen = tahsilat
+  } else if (normalizedCariType === 'Satıcı') {
+    isTahsilat = false; // Satıcıya yapılan = ödeme belgesi
+  } else {
+    isTahsilat = !isBorcType;
+  }
+
+  const isBorc = !isTahsilat;
+  const belgeAdi = isTahsilat ? 'TAHSİLAT BELGESİ' : 'ÖDEME BELGESİ';
   const firmaAdi = settings?.company_name || 'Ön Muhasebe';
   const firmaAdres = settings?.address || '';
   const firmaTel = settings?.phone || '';
@@ -1434,14 +1452,14 @@ const generateMovementPDF = async (tx: any, cariName: string, settings: any) => 
   doc.text('Teslim Alan', W / 2 + 12, y + 4);
 
   const pdfBase64 = doc.output('datauristring').split(',')[1];
-  const fileName = `${isBorc ? 'odeme' : 'tahsilat'}_${tx.makbuz_no || Date.now()}.pdf`;
+  const fileName = `${isTahsilat ? 'tahsilat' : 'odeme'}_${tx.makbuz_no || Date.now()}.pdf`;
 
-  try {
-    const { uri } = await Filesystem.writeFile({ path: fileName, data: pdfBase64, directory: Directory.Cache });
-    await Share.share({ title: belgeAdi, url: uri, dialogTitle: `${belgeAdi} Paylaş` });
-  } catch {
-    doc.save(fileName);
-  }
+    try {
+      const { uri } = await Filesystem.writeFile({ path: fileName, data: pdfBase64, directory: Directory.Cache });
+      await Share.share({ title: belgeAdi, url: uri, dialogTitle: `${belgeAdi} Paylaş` });
+    } catch {
+      doc.save(fileName);
+    }
 };
 
 const BackButton = ({ onClick }: { onClick: () => void }) => (
@@ -2021,6 +2039,14 @@ export default function App() {
       const bakiyeAbs = Math.abs(cariBakiye);
       const bakiyeDurum = cariBakiye > 0 ? 'Alacak' : cariBakiye < 0 ? 'Borç' : 'Denk';
 
+      // Cari tipine göre işlem yönü belirle
+      const cariTipi = normalizeCariRole(selectedCariData?.type);
+      // Alıcı carisi: tahsilat (TAHSİLAT/GELİR alanı), Satıcı: ödeme (ÖDEME/GİDER alanı)
+      const isAliciCari = cariTipi === 'Alıcı';
+      const isSaticiCari = cariTipi === 'Satıcı';
+      // Her iki tip için başlık etiketi
+      const islemBasligi = isAliciCari ? 'TAHSİLAT GİRİŞİ' : isSaticiCari ? 'ÖDEME GİRİŞİ' : 'HAREKET GİRİŞİ';
+
       // Tarih parçaları — editingTransaction'dan veya bugünden al
       const today = new Date();
       const parseDate = (rawDate: any): string => {
@@ -2044,10 +2070,12 @@ export default function App() {
               <BackButton onClick={() => setSubView('menu')} />
             </div>
             <div className="flex items-center gap-2">
-              <div className="p-1 bg-indigo-500 rounded-lg text-white shadow-sm">
+              <div className={`p-1 rounded-lg text-white shadow-sm ${isAliciCari ? 'bg-emerald-500' : isSaticiCari ? 'bg-red-500' : 'bg-indigo-500'}`}>
                 <Edit size={18} />
               </div>
-              <h2 className="text-lg font-extrabold text-slate-800 uppercase tracking-tight">{editingTransaction ? 'Hareketi Düzenle' : 'Hareket Girişi'}</h2>
+              <h2 className="text-lg font-extrabold text-slate-800 uppercase tracking-tight">
+                {editingTransaction ? 'Hareketi Düzenle' : islemBasligi}
+              </h2>
             </div>
           </div>
 
@@ -2062,7 +2090,7 @@ export default function App() {
                 const alacakVal = parseNumber(data.alacak_amount as string);
 
                 if (borcVal === 0 && alacakVal === 0) {
-                  alert('Borç veya alacak tutarı giriniz');
+                  alert('Tutar giriniz');
                   return;
                 }
                 if (borcVal > 0 && alacakVal > 0) {
@@ -2070,10 +2098,40 @@ export default function App() {
                   return;
                 }
 
+                // Cari tipine göre type ve tutar belirle:
+                // Alıcı carisi: TAHSİLAT/GELİR alanı → type: 'Alacak', bakiyeyi azaltır
+                // Satıcı carisi: ÖDEME/GİDER alanı → type: 'Borc', bakiyeyi azaltır
+                // Her iki tip için yanlış alana giriş yapılmasını engelle
+                let transType: string;
+                let transAmount: number;
+
+                if (isAliciCari) {
+                  // Alıcı: sadece tahsilat (alacak) kabul edilir
+                  if (borcVal > 0 && alacakVal === 0) {
+                    alert('Alıcı cari için lütfen TAHSİLAT / GELİR alanını kullanın');
+                    return;
+                  }
+                  transType = 'Alacak';
+                  transAmount = alacakVal > 0 ? alacakVal : borcVal;
+                } else if (isSaticiCari) {
+                  // Satıcı: sadece ödeme (borç) kabul edilir
+                  if (alacakVal > 0 && borcVal === 0) {
+                    alert('Satıcı cari için lütfen ÖDEME / GİDER alanını kullanın');
+                    return;
+                  }
+                  transType = 'Borc';
+                  transAmount = borcVal > 0 ? borcVal : alacakVal;
+                } else {
+                  // Her ikisi / bilinmiyor: kullanıcının girdiği alana göre
+                  transType = borcVal > 0 ? 'Borc' : 'Alacak';
+                  transAmount = borcVal > 0 ? borcVal : alacakVal;
+                }
+
                 const transactionData = {
                   cari_id: data.cari_id,
-                  type: borcVal > 0 ? 'Borc' : 'Alacak',
-                  amount: Number(borcVal > 0 ? borcVal : alacakVal),
+                  cari_type: selectedCariData?.type || '',
+                  type: transType,
+                  amount: Number(transAmount),
                   date: movementDate || computedDate ? formatDateToDDMMYYYY(new Date(movementDate || computedDate)) : formatDateToDDMMYYYY(),
                   time: String(data.time || new Date().toTimeString().slice(0, 5)),
                   description: String(data.description || ''),
@@ -2192,45 +2250,66 @@ export default function App() {
 
               {/* Tutar Girişi */}
               <div className="panel-3d overflow-hidden p-2">
-                <div className="grid grid-cols-2 gap-2">
-                  <div className="space-y-0.5">
-                    <label className="block text-[9px] font-bold text-red-500 uppercase tracking-tight ml-1">ÖDEME / GİDER</label>
-                    <div className="relative">
-                      <input 
-                        ref={movementBorcInputRef}
-                        name="borc_amount" 
-                        type="text" 
-                        inputMode="decimal"
-                        className={`input-field text-sm py-1.5 font-bold text-red-600 bg-red-50/30 border-red-100 ${preferredMovementSide === 'borc' ? '!border-red-300 !bg-red-50/60' : ''}`} 
-                        placeholder="0,00" 
-                        value={movementBorcAmount}
-                        onChange={(e) => {
-                          setMovementBorcAmount(e.target.value);
-                          if (e.target.value) setMovementAlacakAmount('');
-                        }}
-                      />
-                      <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] font-bold text-red-300">TL</span>
+                {/* Alıcı carisi: sadece TAHSİLAT/GELİR alanı */}
+                {/* Satıcı carisi: sadece ÖDEME/GİDER alanı */}
+                {/* Her ikisi veya bilinmiyor: her iki alan */}
+                <div className={`grid gap-2 ${(!isAliciCari && !isSaticiCari) ? 'grid-cols-2' : 'grid-cols-1'}`}>
+                  {/* ÖDEME / GİDER — Satıcı veya bilinmiyor */}
+                  {(!isAliciCari) && (
+                    <div className="space-y-0.5">
+                      <label className="block text-[9px] font-bold text-red-500 uppercase tracking-tight ml-1">
+                        {isSaticiCari ? '💸 ÖDEME TUTARI' : 'ÖDEME / GİDER'}
+                      </label>
+                      <div className="relative">
+                        <input
+                          ref={movementBorcInputRef}
+                          name="borc_amount"
+                          type="text"
+                          inputMode="decimal"
+                          className={`input-field font-bold text-red-600 bg-red-50/30 border-red-100 ${isSaticiCari ? 'text-lg py-3 !border-red-300 !bg-red-50/60' : 'text-sm py-1.5'} ${preferredMovementSide === 'borc' ? '!border-red-300 !bg-red-50/60' : ''}`}
+                          placeholder="0,00"
+                          value={movementBorcAmount}
+                          onChange={(e) => {
+                            setMovementBorcAmount(e.target.value);
+                            if (e.target.value) setMovementAlacakAmount('');
+                          }}
+                          autoFocus={isSaticiCari}
+                        />
+                        <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] font-bold text-red-300">TL</span>
+                      </div>
+                      {isSaticiCari && (
+                        <p className="text-[9px] text-red-400 ml-1">Satıcı bakiyesinden düşülür</p>
+                      )}
                     </div>
-                  </div>
-                  <div className="space-y-0.5">
-                    <label className="block text-[9px] font-bold text-emerald-600 uppercase tracking-tight ml-1">TAHSİLAT / GELİR</label>
-                    <div className="relative">
-                      <input 
-                        ref={movementAlacakInputRef}
-                        name="alacak_amount" 
-                        type="text" 
-                        inputMode="decimal"
-                        className={`input-field text-sm py-1.5 font-bold text-emerald-600 bg-emerald-50/30 border-emerald-100 ${preferredMovementSide === 'alacak' ? '!border-emerald-300 !bg-emerald-50/60' : ''}`} 
-                        placeholder="0,00" 
-                        value={movementAlacakAmount}
-                        onChange={(e) => {
-                          setMovementAlacakAmount(e.target.value);
-                          if (e.target.value) setMovementBorcAmount('');
-                        }}
-                      />
-                      <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] font-bold text-emerald-300">TL</span>
+                  )}
+                  {/* TAHSİLAT / GELİR — Alıcı veya bilinmiyor */}
+                  {(!isSaticiCari) && (
+                    <div className="space-y-0.5">
+                      <label className="block text-[9px] font-bold text-emerald-600 uppercase tracking-tight ml-1">
+                        {isAliciCari ? '💰 TAHSİLAT TUTARI' : 'TAHSİLAT / GELİR'}
+                      </label>
+                      <div className="relative">
+                        <input
+                          ref={movementAlacakInputRef}
+                          name="alacak_amount"
+                          type="text"
+                          inputMode="decimal"
+                          className={`input-field font-bold text-emerald-600 bg-emerald-50/30 border-emerald-100 ${isAliciCari ? 'text-lg py-3 !border-emerald-300 !bg-emerald-50/60' : 'text-sm py-1.5'} ${preferredMovementSide === 'alacak' ? '!border-emerald-300 !bg-emerald-50/60' : ''}`}
+                          placeholder="0,00"
+                          value={movementAlacakAmount}
+                          onChange={(e) => {
+                            setMovementAlacakAmount(e.target.value);
+                            if (e.target.value) setMovementBorcAmount('');
+                          }}
+                          autoFocus={isAliciCari}
+                        />
+                        <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] font-bold text-emerald-300">TL</span>
+                      </div>
+                      {isAliciCari && (
+                        <p className="text-[9px] text-emerald-500 ml-1">Alıcı bakiyesinden düşülür</p>
+                      )}
                     </div>
-                  </div>
+                  )}
                 </div>
               </div>
 
@@ -2256,7 +2335,7 @@ export default function App() {
                   <button
                     type="button"
                     onClick={async () => {
-                      await generateMovementPDF(editingTransaction, selectedCariData?.name || 'Bilinmeyen', settings);
+                      await generateMovementPDF(editingTransaction, selectedCariData?.name || 'Bilinmeyen', settings, selectedCariData?.type);
                     }}
                     className="aspect-square flex items-center justify-center bg-blue-500 text-white rounded-2xl shadow-lg border-b-4 border-blue-800 hover:bg-blue-600 transition-colors px-4"
                   >
@@ -2472,6 +2551,8 @@ export default function App() {
                     filteredTransactions.forEach(t => {
                       const cari = resolveCariFromEntry(t);
                       const normalizedTType = normalizeCariTransactionType(t.type);
+                      // Cari tipine göre Borç/Alacak yönünü düzelt (Satıcı için ters çevrilir)
+                      const ledgerType = getCariLedgerType(cari?.type, normalizedTType);
                       allItems.push({
                         id: 'trans-' + t.id,
                         date: t.date,
@@ -2480,21 +2561,21 @@ export default function App() {
                         cari_name: fixTR(cari?.name || ''),
                         cari_code: cari?.code || '',
                         type: t.islem_turu || 'Nakit',
-                        islemTuru: normalizedTType,
-                        borcTutar: normalizedTType === 'Borç' ? (t.amount || 0) : 0,
-                        alacakTutar: normalizedTType === 'Alacak' ? (t.amount || 0) : 0,
+                        islemTuru: ledgerType,
+                        borcTutar: ledgerType === 'Borç' ? (t.amount || 0) : 0,
+                        alacakTutar: ledgerType === 'Alacak' ? (t.amount || 0) : 0,
                         isFatura: false
                       });
 
                       const lastItem = allItems[allItems.length - 1];
                       lastItem.rowType = fixTR(t.islem_turu || 'Nakit');
-                      lastItem.type = normalizedTType;
+                      lastItem.type = ledgerType;
                       lastItem.islem_turu = fixTR(t.islem_turu || 'Nakit');
                       lastItem.description = t.description || '';
                       lastItem.evrak_no = t.evrak_no || '';
                       lastItem.makbuz_no = t.makbuz_no || '';
-                      lastItem.borcTutar = normalizedTType === 'Borç' ? (t.amount || 0) : 0;
-                      lastItem.alacakTutar = normalizedTType === 'Alacak' ? (t.amount || 0) : 0;
+                      lastItem.borcTutar = ledgerType === 'Borç' ? (t.amount || 0) : 0;
+                      lastItem.alacakTutar = ledgerType === 'Alacak' ? (t.amount || 0) : 0;
                     });
 
                     const toMovementTime = (dateStr: string, timeStr: string) => {

@@ -675,11 +675,27 @@ export const addTransaction = async (data: any) => {
         createdAt: Timestamp.now()
       });
 
-      // Cari bakiye guÃ¶ncelleme
+      // Cari bakiye güncelleme
       if (data.cari_id) {
         const cariRef = doc(db, COLLECTIONS.CARIS, String(data.cari_id));
-        // TAHSÄ°LAT (Alacak) bakiyeyi azaltÄ±r (-), Ã–DEME (BorÃ§) bakiyeyi artÄ±rÄ±r (+)
-        const balanceChange = isAlacak(data.type) ? -data.amount : data.amount;
+
+        // Bakiye mantığı:
+        // Alıcı (müşteri) — Tahsilat (Alacak): alacağımız azalır → balance -
+        // Satıcı (tedarikçi) — Ödeme (Borç): borcumuz azalır → balance -
+        // Her iki durumda da ödeme/tahsilat işlemi bakiyeyi AZALTMALI
+        // Alıcı cari balance: Satış + artar, Tahsilat - azalır
+        // Satıcı cari balance: Alış + artar, Ödeme - azalır
+        const cariType = String(data.cari_type || '').toLowerCase();
+        const isSatici = cariType.includes('sat');
+
+        let balanceChange: number;
+        if (isSatici) {
+          // Satıcı: Ödeme (Borç) bakiyeyi azaltır, Alacak artırır
+          balanceChange = isAlacak(data.type) ? data.amount : -data.amount;
+        } else {
+          // Alıcı (varsayılan): Tahsilat (Alacak) bakiyeyi azaltır, Borç artırır
+          balanceChange = isAlacak(data.type) ? -data.amount : data.amount;
+        }
 
         transaction.update(cariRef, {
           balance: increment(balanceChange),
@@ -739,10 +755,19 @@ export const deleteTransaction = async (id: string) => {
 
     // Firestore transaction ile sil
     await runTransaction(db, async (transaction) => {
-      // Cari bakiye etkisini geri al
+      // Cari bakiye etkisini geri al (addTransaction'ın tersini uygula)
       if (data.cari_id) {
         const cariRef = doc(db, COLLECTIONS.CARIS, String(data.cari_id));
-        const balanceCorrection = isAlacak(data.type) ? data.amount : -data.amount;
+        const cariType = String(data.cari_type || '').toLowerCase();
+        const isSatici = cariType.includes('sat');
+        let balanceCorrection: number;
+        if (isSatici) {
+          // Satıcı için ekleme: Ödeme(Borç) → -amount. Geri alma: +amount
+          balanceCorrection = isAlacak(data.type) ? -data.amount : data.amount;
+        } else {
+          // Alıcı için ekleme: Tahsilat(Alacak) → -amount. Geri alma: +amount
+          balanceCorrection = isAlacak(data.type) ? data.amount : -data.amount;
+        }
         const cariSnap = await transaction.get(cariRef);
         if (cariSnap.exists()) {
           transaction.update(cariRef, {
@@ -751,7 +776,7 @@ export const deleteTransaction = async (id: string) => {
           });
         }
       }
-      // Kasa kaydÄ±nÄ± sil
+      // Kasa kaydını sil
       if (kasaDocRef) transaction.delete(kasaDocRef);
       // Hareketi sil
       transaction.delete(transRef);
@@ -810,14 +835,29 @@ export const updateTransaction = async (id: string, newData: any) => {
 
       // Tüm WRITE'lar sonra
       if (oldCariRef && oldCariSnap?.exists()) {
-        const oldCorrection = isAlacak(oldData.type) ? oldData.amount : -oldData.amount;
+        // Eski işlemi geri al (ters işaret)
+        const oldCariType = String(oldData.cari_type || '').toLowerCase();
+        const oldIsSatici = oldCariType.includes('sat');
+        let oldCorrection: number;
+        if (oldIsSatici) {
+          oldCorrection = isAlacak(oldData.type) ? -oldData.amount : oldData.amount;
+        } else {
+          oldCorrection = isAlacak(oldData.type) ? oldData.amount : -oldData.amount;
+        }
         transaction.update(oldCariRef, { balance: increment(oldCorrection), updatedAt: Timestamp.now() });
       }
 
       if (newCariRef) {
         const targetSnap = newCariSnap || oldCariSnap;
         if (targetSnap?.exists()) {
-          const newApply = isAlacak(newData.type) ? -newData.amount : newData.amount;
+          const newCariType = String(newData.cari_type || '').toLowerCase();
+          const newIsSatici = newCariType.includes('sat');
+          let newApply: number;
+          if (newIsSatici) {
+            newApply = isAlacak(newData.type) ? newData.amount : -newData.amount;
+          } else {
+            newApply = isAlacak(newData.type) ? -newData.amount : newData.amount;
+          }
           transaction.update(newCariRef, { balance: increment(newApply), updatedAt: Timestamp.now() });
         }
       }
@@ -869,20 +909,39 @@ export const recalculateCariBalance = async (cariId: string) => {
       .map(d => ({ id: d.id, ...d.data() as any }))
       .filter(t => String(t.cari_id) === String(cariId));
 
-    // 2. CALC total balance (Philosophy: SATIÅ +, ALIÅ -, Ã–DEME/BorÃ§ +, TAHSÄ°LAT/Alacak -)
+    // 2. CALC total balance
+    // Alici cari: Satis bakiye artirir (+), Tahsilat(Alacak) azaltir (-)
+    // Satici cari: Alis bakiye artirir (+), Odeme(Borc) azaltir (-)
+
+    // Once cari tipini oren
+    const cariSnap = await getDoc(cariRef);
+    const cariData = cariSnap.exists() ? cariSnap.data() : {};
+    const cariTypeStr = String(cariData.type || '').toLowerCase();
+    const isSaticiCari = cariTypeStr.includes('sat');
+
     let total = 0;
-    
+
     invoices.forEach(inv => {
       const amount = Number(inv.total_amount || 0);
-      if (inv.type === 'SatÄ±ÅŸ') total += amount;
-      else if (inv.type === 'AlÄ±ÅŸ') total -= amount;
+      const invTypeStr = String(inv.type || '').toLowerCase();
+      if (invTypeStr.includes('sat')) total += amount;
+      else if (invTypeStr.includes('al')) total -= amount;
     });
 
     transactions.forEach(t => {
-      if (t.isInvoice) return; // Fatura hareketlerini faturalar kÄ±smÄ±nda saydÄ±k zaten
+      if (t.isInvoice) return;
       const amount = Number(t.amount || 0);
-      if (t.type === 'Alacak') total -= amount; // Tahsilat
-      else if (t.type === 'BorÃ§') total += amount; // Ã–deme
+      const tTypeStr = String(t.type || '').toLowerCase().trim();
+      const tIsAlacak = tTypeStr === 'alacak';
+      if (isSaticiCari) {
+        // Satici: Odeme(Borc) bakiyeyi azaltir, Alacak arttirir
+        if (tIsAlacak) total += amount;
+        else total -= amount;
+      } else {
+        // Alici: Tahsilat(Alacak) bakiyeyi azaltir, Borc arttirir
+        if (tIsAlacak) total -= amount;
+        else total += amount;
+      }
     });
 
     // 3. UPDATE cari doc
