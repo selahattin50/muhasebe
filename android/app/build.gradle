@@ -4,11 +4,12 @@ android {
     namespace = "com.onmuhasebe.app"
     compileSdk = rootProject.ext.compileSdkVersion
     defaultConfig {
-        applicationId "com.onmuhasebe.app.fix"
+        // APK 2.0.1 ile aynı kimlik: Android bunu mevcut uygulamanın güncellemesi olarak algılar.
+        applicationId "com.onmuhasebe.app"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 20004
-        versionName "2.0.4-fix"
+        versionCode 20006
+        versionName "2.0.6"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
@@ -44,6 +45,8 @@ android {
             outputFileName = variant.buildType.name == "debug"
                 ? "Ön Muhasebe.apk"
                 : "Ön Muhasebe-${variant.buildType.name}.apk"
+            // Dağıtım dosya adı sabit tutulur; sürüm veya build türü eklenmez.
+            outputFileName = "Ön Muhasebe.apk"
         }
     }
 }

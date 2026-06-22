@@ -7,6 +7,8 @@ export default defineConfig(({mode}) => {
   const env = loadEnv(mode, '.', '');
   return {
     plugins: [react(), tailwindcss()],
+    // Referans APK 2.0.1'in görsel tema ve görselleri üretimde de aynı dosyalardan sunulur.
+    publicDir: 'apk_extracted/assets/public',
     define: {
       'process.env.GEMINI_API_KEY': JSON.stringify(env.GEMINI_API_KEY),
     },
