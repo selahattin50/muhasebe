@@ -11,10 +11,70 @@
     <link rel="icon" type="image/png" href="./logo.png" />
     <title>Ön Muhasebe</title>
     <!-- 2.0.1 APK'nin özgün web arayüzü: görsel ve ekran yapısı birebirdir. -->
-    <link rel="stylesheet" crossorigin href="/assets/index-11XwK_Qb.css" />
   </head>
   <body>
     <div id="root"></div>
     <script type="module" crossorigin src="/assets/index-Cm4a6Zcb.js"></script>
+    <script>
+      // 2.0.1 raporu nakit tahsilatını alacağa ekliyordu. Görünümü
+      // değiştirmeden, ekrandaki rapor özetini cari bakiyesi mantığıyla düzelt.
+      (() => {
+        const amountOf = (value) => {
+          const text = String(value || '').replace(/[^0-9,.-]/g, '');
+          const normalized = text.includes(',')
+            ? text.replace(/\./g, '').replace(',', '.')
+            : text;
+          return Number.parseFloat(normalized) || 0;
+        };
+
+        const format = (value) => value.toLocaleString('tr-TR', {
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2,
+        });
+
+        const correctReportTotals = () => {
+          const report = document.querySelector('.movement-report-page');
+          if (!report) return;
+
+          let borc = 0;
+          let alacak = 0;
+          report.querySelectorAll('.movement-report-row').forEach((row) => {
+            const type = row.querySelector('.movement-report-badge')?.textContent
+              ?.trim().toLocaleLowerCase('tr-TR') || '';
+            const amountElement = row.querySelector('.movement-report-amount');
+            const amount = amountOf(amountElement?.textContent);
+            if (!amount) return;
+
+            // Satış müşteriden alacağımızı, alış tedarikçiye borcumuzu artırır.
+            // Nakit satırının rengi uygulamanın gerçek yönünü verir: yeşil giriş
+            // (müşteriden tahsilat), kırmızı çıkış (satıcıya ödeme) demektir.
+            if (type.includes('satış') || type.includes('satis')) alacak += amount;
+            else if (type.includes('alış') || type.includes('alis')) borc += amount;
+            else if (type.includes('nakit') || type.includes('tahsilat') || type.includes('havale') || type.includes('ödeme') || type.includes('odeme')) {
+              if (amountElement?.classList.contains('movement-report-amount-out')) alacak += amount;
+              else borc += amount;
+            }
+          });
+
+          const bakiye = alacak - borc;
+          const setValue = (element, value) => {
+            if (element.textContent !== value) element.textContent = value;
+          };
+          report.querySelectorAll('.movement-report-totals > div').forEach((block) => {
+            const label = block.querySelector('span')?.textContent?.trim().toLocaleLowerCase('tr-TR');
+            const value = block.querySelector('strong');
+            if (!value) return;
+            if (label === 'borç' || label === 'borc') setValue(value, format(borc));
+            if (label === 'alacak') setValue(value, format(alacak));
+            if (label === 'bakiye') setValue(value, format(Math.abs(bakiye)));
+          });
+        };
+
+        const observer = new MutationObserver(correctReportTotals);
+        observer.observe(document.documentElement, { childList: true, subtree: true, characterData: true });
+        document.addEventListener('DOMContentLoaded', correctReportTotals);
+      })();
+    </script>
+    <link rel="stylesheet" crossorigin href="/assets/index-11XwK_Qb.css" />
   </body>
 </html>
