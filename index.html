@@ -14,7 +14,18 @@
   </head>
   <body>
     <div id="root"></div>
-    <script type="module" crossorigin src="/assets/index-Cm4a6Zcb.js"></script>
+    <script type="module">
+      // 2.0.1 koyu arayüzünü korurken, alıcı caride Tahsilat/Gelir alanının
+      // muhasebe yönünü düzelt: tahsilat Alacak olarak kaydedilir.
+      (async () => {
+        const source = await fetch('/assets/index-Cm4a6Zcb.js').then((response) => response.text());
+        const corrected = source.replace(
+          'type:cB?"Borc":"Alacak",document_type:cB?"tahsilat":"odeme"',
+          'type:cB?"Alacak":"Borc",document_type:cB?"tahsilat":"odeme"',
+        );
+        await import(URL.createObjectURL(new Blob([corrected], { type: 'text/javascript' })));
+      })();
+    </script>
     <script>
       // 2.0.1 raporu nakit tahsilatını alacağa ekliyordu. Görünümü
       // değiştirmeden, ekrandaki rapor özetini cari bakiyesi mantığıyla düzelt.
@@ -31,6 +42,82 @@
           minimumFractionDigits: 2,
           maximumFractionDigits: 2,
         });
+
+        const fixText = (value) => String(value || '')
+          .toLocaleLowerCase('tr-TR')
+          .replace(/ı/g, 'i')
+          .replace(/ş/g, 's')
+          .replace(/ğ/g, 'g')
+          .replace(/ü/g, 'u')
+          .replace(/ö/g, 'o')
+          .replace(/ç/g, 'c')
+          .trim();
+
+        // APK'nin React durumundan cari/fatura/hareket dizilerini bulur.
+        // Bu sayede eski `balance` alanına değil, gerçek hareketlere dayanır.
+        const readLedgerData = () => {
+          const root = document.getElementById('root');
+          const key = root && Object.keys(root).find((name) => name.startsWith('__reactContainer$'));
+          const rootFiber = key && root[key];
+          if (!rootFiber) return null;
+
+          const arrays = [];
+          const seen = new Set();
+          const visit = (fiber) => {
+            if (!fiber || seen.has(fiber)) return;
+            seen.add(fiber);
+            for (let hook = fiber.memoizedState; hook; hook = hook.next) {
+              if (Array.isArray(hook.memoizedState)) arrays.push(hook.memoizedState);
+            }
+            visit(fiber.child);
+            visit(fiber.sibling);
+          };
+          visit(rootFiber);
+
+          const caris = arrays.find((items) => items.some((item) => item && item.code && item.name && item.type));
+          const invoices = arrays.find((items) => items.some((item) => item && item.cari_id != null && item.total_amount != null));
+          const transactions = arrays.find((items) => items.some((item) => item && item.cari_id != null && item.amount != null && item.total_amount == null));
+          return caris && invoices && transactions ? { caris, invoices, transactions } : null;
+        };
+
+        const correctPickerBalances = () => {
+          const data = readLedgerData();
+          const picker = document.querySelector('.movement-cari-picker-list');
+          if (!data || !picker) return;
+
+          const balances = new Map(data.caris.map((cari) => [String(cari.id), 0]));
+          data.invoices.forEach((invoice) => {
+            const cari = data.caris.find((item) => String(item.id) === String(invoice.cari_id));
+            if (!cari) return;
+            const amount = Number(invoice.total_amount) || 0;
+            const role = fixText(cari.type);
+            const type = fixText(invoice.type);
+            const increasesBalance = role.includes('satici') ? type.includes('alis') : type.includes('satis');
+            balances.set(String(cari.id), (balances.get(String(cari.id)) || 0) + (increasesBalance ? amount : -amount));
+          });
+          data.transactions.forEach((transaction) => {
+            const id = String(transaction.cari_id);
+            if (!balances.has(id)) return;
+            const amount = Number(transaction.amount) || 0;
+            const type = fixText(transaction.type);
+            // Tahsilat (Alacak) ve ödeme (Borç) mevcut cari bakiyesini azaltır.
+            const reducesBalance = type.includes('alacak') || type.includes('borc');
+            balances.set(id, (balances.get(id) || 0) + (reducesBalance ? -amount : amount));
+          });
+
+          picker.querySelectorAll('.movement-cari-picker-item').forEach((row) => {
+            const text = fixText(row.textContent);
+            const cari = data.caris.find((item) => text.includes(fixText(item.code)) && text.includes(fixText(item.name)));
+            if (!cari) return;
+            const balance = balances.get(String(cari.id)) || 0;
+            const value = Array.from(row.querySelectorAll('span')).find((span) => span.textContent.includes('₺'));
+            if (!value) return;
+            const next = `₺${format(Math.abs(balance))}`;
+            if (value.textContent !== next) value.textContent = next;
+            value.classList.toggle('text-emerald-600', balance >= 0);
+            value.classList.toggle('text-red-600', balance < 0);
+          });
+        };
 
         const correctReportTotals = () => {
           const report = document.querySelector('.movement-report-page');
@@ -68,11 +155,16 @@
             if (label === 'alacak') setValue(value, format(alacak));
             if (label === 'bakiye') setValue(value, format(Math.abs(bakiye)));
           });
+          correctPickerBalances();
         };
 
-        const observer = new MutationObserver(correctReportTotals);
+        const refreshBalances = () => {
+          correctReportTotals();
+          correctPickerBalances();
+        };
+        const observer = new MutationObserver(refreshBalances);
         observer.observe(document.documentElement, { childList: true, subtree: true, characterData: true });
-        document.addEventListener('DOMContentLoaded', correctReportTotals);
+        document.addEventListener('DOMContentLoaded', refreshBalances);
       })();
     </script>
     <link rel="stylesheet" crossorigin href="/assets/index-11XwK_Qb.css" />
