@@ -40,6 +40,7 @@ import {
   Trash2,
   Edit,
   ArrowUpDown,
+  CalendarDays,
   Share2,
   RefreshCw,
   UserPlus,
@@ -1544,6 +1545,8 @@ export default function App() {
   const [selectedCariForMovement, setSelectedCariForMovement] = useState<string | number | null>(null);
   const [editingTransaction, setEditingTransaction] = useState<any>(null);
   const [movementSortOrder, setMovementSortOrder] = useState<'asc' | 'desc'>('desc');
+  const [movementStartDate, setMovementStartDate] = useState('');
+  const [movementEndDate, setMovementEndDate] = useState('');
   const [movementDate, setMovementDate] = useState<string>('');
   const [movementTime, setMovementTime] = useState<string>('');
   const [movementBorcAmount, setMovementBorcAmount] = useState<string>('');
@@ -2366,25 +2369,25 @@ export default function App() {
 
     if (subView === 'movements') {
       return (
-        <div className="max-w-4xl mx-auto h-full flex flex-col overflow-hidden px-0">
-          <div className="flex items-center justify-center gap-3 shrink-0 pt-4 pb-4 px-4 border-b border-slate-100 bg-white/50 backdrop-blur-md relative">
+        <div className="max-w-4xl mx-auto h-full flex flex-col overflow-hidden bg-[#13204a]">
+          <div className="flex items-center justify-center gap-3 shrink-0 pt-4 pb-4 px-4 bg-[#243b7b] text-white shadow-lg relative">
             <div className="absolute left-4">
               <BackButton onClick={() => setSubView('menu')} />
             </div>
             <div className="flex items-center gap-2">
-              <div className="p-1 bg-indigo-500 rounded-lg text-white shadow-sm">
+              <div className="p-2 bg-orange-500 rounded-xl text-white shadow-md">
                 <History size={18} />
               </div>
-              <h2 className="text-lg font-extrabold text-slate-800 uppercase tracking-tight">Cari Hareket Raporu</h2>
+              <h2 className="text-lg font-extrabold uppercase tracking-tight">Cari Hareket Raporu</h2>
             </div>
           </div>
 
           {/* Cari Filtresi */}
-          <div className="card p-4">
+          <div className="mx-3 mt-3 rounded-2xl border border-blue-300/40 bg-[#1b2b61] p-3 shadow-xl">
             <div className="flex items-center gap-2">
               <select
                 key={`movement-filter-${subView}`}
-                className="flex-1 px-3 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 bg-blue-50/50"
+                className="min-w-0 flex-1 px-3 py-3 text-sm font-bold text-white border border-blue-300/60 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-300 bg-[#2d68df]"
                 value={selectedCariForMovement ? String(selectedCariForMovement) : ''}
                 onChange={(e) => {
                   const val = e.target.value;
@@ -2400,19 +2403,28 @@ export default function App() {
               </select>
               <button
                 onClick={() => setMovementSortOrder(movementSortOrder === 'asc' ? 'desc' : 'asc')}
-                className={`p-2 rounded-lg border border-slate-300 transition-colors ${movementSortOrder === 'desc' ? 'bg-purple-100 text-purple-600 border-purple-200' : 'bg-blue-50/50 text-slate-600'}`}
+                className="p-3 rounded-xl border border-blue-300/60 bg-[#2d68df] text-white transition-colors"
                 title={movementSortOrder === 'desc' ? 'Yeni En \u00dcstte' : 'Eski En \u00dcstte'}
               >
                 <ArrowUpDown size={20} className={movementSortOrder === 'desc' ? 'rotate-180 transition-transform' : 'transition-transform'} />
               </button>
             </div>
+            <div className="grid grid-cols-[1fr_1fr_auto] gap-2 mt-3">
+              <label className="text-[10px] font-black tracking-widest text-blue-100 uppercase">Başlangıç
+                <span className="mt-1 flex items-center gap-1 rounded-xl bg-white px-2 py-2 text-slate-800"><CalendarDays size={16} className="text-slate-400" /><input type="date" value={movementStartDate} onChange={(e) => setMovementStartDate(e.target.value)} className="min-w-0 w-full bg-transparent text-xs font-bold outline-none" /></span>
+              </label>
+              <label className="text-[10px] font-black tracking-widest text-blue-100 uppercase">Bitiş
+                <span className="mt-1 flex items-center gap-1 rounded-xl bg-white px-2 py-2 text-slate-800"><CalendarDays size={16} className="text-slate-400" /><input type="date" value={movementEndDate} onChange={(e) => setMovementEndDate(e.target.value)} className="min-w-0 w-full bg-transparent text-xs font-bold outline-none" /></span>
+              </label>
+              <button onClick={() => { setMovementStartDate(''); setMovementEndDate(''); }} className="self-end rounded-xl bg-[#2d68df] px-3 py-2.5 text-white"><X size={18} /></button>
+            </div>
           </div>
           <div className="border-b-2 border-slate-300 my-2 mx-1"></div>
 
-          <div className="panel-3d bg-blue-50/50 flex-1 overflow-y-auto custom-scrollbar mb-4">
+          <div className="flex-1 overflow-y-auto custom-scrollbar px-3 py-3">
             <div className="w-full overflow-x-hidden">
-              <table className="w-full text-left text-xs border-collapse min-w-[320px]">
-                <thead>
+              <table className="w-full text-left text-xs border-separate border-spacing-y-2 min-w-[320px]">
+                <thead className="hidden">
                   <tr className="bg-blue-50/30 border-b border-slate-200">
                     <th className="px-1 py-2 font-bold text-center text-slate-500 uppercase tracking-wider" style={{ fontSize: '9px' }}>Tarih</th>
                     <th className="px-1 py-2 font-bold text-center text-slate-500 uppercase tracking-wider" style={{ fontSize: '9px' }}>{'\u0130\u015flem'}</th>
@@ -2485,8 +2497,23 @@ export default function App() {
                       lastItem.alacakTutar = normalizedTType === 'Alacak' ? (t.amount || 0) : 0;
                     });
 
+                    const toMovementTime = (dateStr: string, timeStr: string) => {
+                      const value = String(dateStr || '').split('T')[0];
+                      const parts = value.split('-');
+                      const normalizedDate = parts.length === 3 && parts[0].length === 2
+                        ? `${parts[2]}-${parts[1]}-${parts[0]}`
+                        : value;
+                      return new Date(`${normalizedDate}T${timeStr || '00:00:00'}`).getTime();
+                    };
+                    const dateFilteredItems = allItems.filter(item => {
+                      const timestamp = toMovementTime(item.date, item.time);
+                      const afterStart = !movementStartDate || timestamp >= new Date(`${movementStartDate}T00:00:00`).getTime();
+                      const beforeEnd = !movementEndDate || timestamp <= new Date(`${movementEndDate}T23:59:59`).getTime();
+                      return afterStart && beforeEnd;
+                    });
+
                     // Tarih ve saate g?re s?rala
-                    allItems.sort((a, b) => {
+                    dateFilteredItems.sort((a, b) => {
                       // DD-MM-YYYY format?n? YYYY-MM-DD'ye ?evir
                       const convertDate = (dateStr: string) => {
                         if (dateStr.includes('-') && dateStr.split('-')[0].length === 2) {
@@ -2503,15 +2530,15 @@ export default function App() {
 
                     // Y?r?yen bakiye hesapla
                     let currentBalance = 0;
-                    const itemsWithBalance = allItems.map(item => {
+                    const itemsWithBalance = dateFilteredItems.map(item => {
                       // Borç bakiyeyi art?r?r, Alacak azalt?r (Cari perspektifinden)
                       currentBalance += (item.alacakTutar - item.borcTutar);
                       return { ...item, runningBalance: currentBalance };
                     });
 
                     // Toplamlar? hesapla
-                    const toplamBorc = allItems.reduce((sum, item) => sum + item.borcTutar, 0);
-                    const toplamAlacak = allItems.reduce((sum, item) => sum + item.alacakTutar, 0);
+                    const toplamBorc = dateFilteredItems.reduce((sum, item) => sum + item.borcTutar, 0);
+                    const toplamAlacak = dateFilteredItems.reduce((sum, item) => sum + item.alacakTutar, 0);
                     const bakiye = toplamAlacak - toplamBorc;
                     const bakiyeLabel = bakiye > 0 ? 'ALACAK' : bakiye < 0 ? 'BORC' : 'DENK';
 
@@ -2526,7 +2553,7 @@ export default function App() {
                           return (
                             <tr
                               key={item.id}
-                              className={`border-b border-slate-100 cursor-pointer hover:bg-blue-50/30 transition-colors active:scale-[0.99] origin-center ${index % 2 === 0 ? 'bg-blue-50/50' : 'bg-blue-50/30/30'}`}
+                              className="grid grid-cols-[1fr_auto] overflow-hidden rounded-xl border border-slate-300 bg-slate-100 shadow-[0_5px_0_#21315f] cursor-pointer hover:bg-white transition-colors active:scale-[0.99] origin-center"
                               onClick={() => {
                                 if (item.id.includes('trans')) {
                                   const transId = item.id.replace('trans-', '');
@@ -2546,26 +2573,23 @@ export default function App() {
                                 }
                               }}
                             >
-                              <td className="px-1 py-2 text-center font-medium text-slate-600" style={{ fontSize: '10px' }}>
-                                <div className="flex flex-col items-center gap-0.5">
-                                  <span>{displayDate(item.date)}</span>
+                              <td className="px-3 py-2.5 font-medium text-slate-600" style={{ fontSize: '10px' }}>
+                                <div className="flex flex-col gap-0.5">
+                                  <span className="text-base font-black text-slate-900 leading-tight">{item.cari_name || 'Cari Hesap'}</span>
+                                  <span className="flex items-center gap-2 text-sm font-bold text-slate-500"><span className="rounded bg-white px-1.5 py-0.5 text-[10px] uppercase">{fixTR(item.rowType || item.type)}</span>{displayDate(item.date)} · {String(item.time || '').slice(0, 5)}</span>
                                 </div>
                               </td>
-                              <td className="px-1 py-2 text-center">
+                              <td className="hidden">
                                 <div className="flex flex-col items-center gap-1">
                                   <span className={`px-1.5 py-0.5 rounded-lg text-[9px] font-black uppercase tracking-tighter ${item.alacakTutar > 0 ? 'bg-emerald-100 text-emerald-700' : item.borcTutar > 0 ? 'bg-red-100 text-red-700' : 'bg-slate-100 text-slate-700'}`}>
                                     {fixTR(item.rowType || item.type)}
                                   </span>
                                 </div>
                               </td>
-                              <td className="px-1 py-2 text-right font-bold text-red-600" style={{ fontSize: '10px' }}>
-                                {item.borcTutar > 0 ? item.borcTutar.toLocaleString('tr-TR', { minimumFractionDigits: 3, maximumFractionDigits: 3 }) : '-'}
-                              </td>
-                              <td className="px-1 py-2 text-right font-bold text-emerald-600" style={{ fontSize: '10px' }}>
-                                {item.alacakTutar > 0 ? item.alacakTutar.toLocaleString('tr-TR', { minimumFractionDigits: 3, maximumFractionDigits: 3 }) : '-'}
-                              </td>
-                              <td className="px-1 py-2 text-right font-bold text-slate-900" style={{ fontSize: '10px' }}>
-                                {item.runningBalance !== 0 ? Math.abs(item.runningBalance).toLocaleString('tr-TR', { minimumFractionDigits: 3, maximumFractionDigits: 3 }) : '0.000'}
+                              <td className="hidden">{item.borcTutar}</td>
+                              <td className="hidden">{item.alacakTutar}</td>
+                              <td className={`flex items-center px-3 py-2 text-right text-2xl font-black ${item.alacakTutar > 0 ? 'text-emerald-600' : 'text-slate-950'}`}>
+                                ₺{Math.abs(item.alacakTutar || item.borcTutar).toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                               </td>
                             </tr>
                           );
