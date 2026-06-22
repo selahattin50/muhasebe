@@ -19,10 +19,16 @@
       // muhasebe yönünü düzelt: tahsilat Alacak olarak kaydedilir.
       (async () => {
         const source = await fetch('/assets/index-Cm4a6Zcb.js').then((response) => response.text());
-        const corrected = source.replace(
-          'type:cB?"Borc":"Alacak",document_type:cB?"tahsilat":"odeme"',
-          'type:cB?"Alacak":"Borc",document_type:cB?"tahsilat":"odeme"',
-        );
+        const corrected = source
+          .replace(
+            'type:cB?"Borc":"Alacak",document_type:cB?"tahsilat":"odeme"',
+            'type:cB?"Alacak":"Borc",document_type:cB?"tahsilat":"odeme"',
+          )
+          // Cari seçildiğinde bakiyeyi giriş alanlarına otomatik yazan etkiyi kaldır.
+          .replace(
+            /const DB=dc\(UA\.balance\),EB=String\(UA\.type\|\|""\)\.toLowerCase\(\);let zB=null;[\s\S]*?\},\[eQ,R,QQ\]\);/,
+            'zg(null),Pg(""),AC("")},[eQ,R,QQ]);',
+          );
         await import(URL.createObjectURL(new Blob([corrected], { type: 'text/javascript' })));
       })();
     </script>
@@ -83,7 +89,7 @@
         const correctPickerBalances = () => {
           const data = readLedgerData();
           const picker = document.querySelector('.movement-cari-picker-list');
-          if (!data || !picker) return;
+          if (!data) return;
 
           const balances = new Map(data.caris.map((cari) => [String(cari.id), 0]));
           data.invoices.forEach((invoice) => {
@@ -104,6 +110,9 @@
             const reducesBalance = type.includes('alacak') || type.includes('borc');
             balances.set(id, (balances.get(id) || 0) + (reducesBalance ? -amount : amount));
           });
+          window.__cariLedgerBalances = { caris: data.caris, balances };
+          // Hesap ilk açılışta da hazırlanır; seçim penceresi daha sonra açılabilir.
+          if (!picker) return;
 
           picker.querySelectorAll('.movement-cari-picker-item').forEach((row) => {
             const text = fixText(row.textContent);
@@ -117,6 +126,31 @@
             value.classList.toggle('text-emerald-600', balance >= 0);
             value.classList.toggle('text-red-600', balance < 0);
           });
+        };
+
+        const correctStoredBalanceDisplays = () => {
+          const ledger = window.__cariLedgerBalances;
+          if (!ledger) return;
+          const findCari = (text) => {
+            const normalized = fixText(text);
+            return ledger.caris.find((item) => normalized.includes(fixText(item.code)) && normalized.includes(fixText(item.name)));
+          };
+          const apply = (container, cari) => {
+            if (!cari) return;
+            const balance = ledger.balances.get(String(cari.id)) || 0;
+            const value = Array.from(container.querySelectorAll('span')).find((span) => span.textContent.includes('₺'));
+            if (!value) return;
+            const label = balance > 0 ? 'Alacak' : balance < 0 ? 'Borç' : 'Denk';
+            const next = `₺${format(Math.abs(balance))} ${label}`;
+            if (value.textContent !== next) value.textContent = next;
+            value.classList.toggle('text-emerald-600', balance > 0);
+            value.classList.toggle('text-red-600', balance < 0);
+            value.classList.toggle('text-slate-500', balance === 0);
+          };
+
+          document.querySelectorAll('.cari-list-card').forEach((card) => apply(card, findCari(card.textContent)));
+          const movementSummary = document.querySelector('.movement-entry-cari-summary');
+          if (movementSummary) apply(movementSummary, findCari(movementSummary.textContent));
         };
 
         const correctReportTotals = () => {
@@ -161,6 +195,7 @@
         const refreshBalances = () => {
           correctReportTotals();
           correctPickerBalances();
+          correctStoredBalanceDisplays();
         };
         const observer = new MutationObserver(refreshBalances);
         observer.observe(document.documentElement, { childList: true, subtree: true, characterData: true });
