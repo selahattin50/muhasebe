@@ -123,8 +123,10 @@
             if (!value) return;
             const next = `₺${format(Math.abs(balance))}`;
             if (value.textContent !== next) value.textContent = next;
-            value.classList.toggle('text-emerald-600', balance >= 0);
-            value.classList.toggle('text-red-600', balance < 0);
+            const isSupplier = fixText(cari.type).includes('satici');
+            const isDebt = balance !== 0 && (isSupplier ? balance > 0 : balance < 0);
+            value.classList.toggle('text-emerald-600', balance !== 0 && !isDebt);
+            value.classList.toggle('text-red-600', isDebt);
           });
         };
 
@@ -140,11 +142,13 @@
             const balance = ledger.balances.get(String(cari.id)) || 0;
             const value = Array.from(container.querySelectorAll('span')).find((span) => span.textContent.includes('₺'));
             if (!value) return;
-            const label = balance > 0 ? 'Alacak' : balance < 0 ? 'Borç' : 'Denk';
+            const isSupplier = fixText(cari.type).includes('satici');
+            const isDebt = balance !== 0 && (isSupplier ? balance > 0 : balance < 0);
+            const label = balance === 0 ? 'Denk' : isDebt ? 'Borç' : 'Alacak';
             const next = `₺${format(Math.abs(balance))} ${label}`;
             if (value.textContent !== next) value.textContent = next;
-            value.classList.toggle('text-emerald-600', balance > 0);
-            value.classList.toggle('text-red-600', balance < 0);
+            value.classList.toggle('text-emerald-600', balance !== 0 && !isDebt);
+            value.classList.toggle('text-red-600', isDebt);
             value.classList.toggle('text-slate-500', balance === 0);
           };
 
@@ -171,7 +175,9 @@
             // (müşteriden tahsilat), kırmızı çıkış (satıcıya ödeme) demektir.
             if (type.includes('satış') || type.includes('satis')) alacak += amount;
             else if (type.includes('alış') || type.includes('alis')) borc += amount;
-            else if (type.includes('nakit') || type.includes('tahsilat') || type.includes('havale') || type.includes('ödeme') || type.includes('odeme')) {
+            // Fatura olmayan tüm tahsilat/ödeme türleri aynı bakiye kuralına
+            // uyar. Kredi kartı, havale, çek ve senet de burada yer almalıdır.
+            else if (type.includes('nakit') || type.includes('tahsilat') || type.includes('havale') || type.includes('kredi') || type.includes('çek') || type.includes('cek') || type.includes('senet') || type.includes('ödeme') || type.includes('odeme')) {
               if (amountElement?.classList.contains('movement-report-amount-out')) alacak += amount;
               else borc += amount;
             }
