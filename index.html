@@ -28,6 +28,12 @@
           .replace(
             /const DB=dc\(UA\.balance\),EB=String\(UA\.type\|\|""\)\.toLowerCase\(\);let zB=null;[\s\S]*?\},\[eQ,R,QQ\]\);/,
             'zg(null),Pg(""),AC("")},[eQ,R,QQ]);',
+          )
+          // At() fonksiyonu: document_type yoksa eski kayıtlarda isBorc yerine isAlacak kullan.
+          // Alacak (tahsilat) = kasa girişi, Borç (ödeme) = kasa çıkışı olmalı.
+          .replace(
+            'return A?A==="tahsilat":a1(Q==null?void 0:Q.type)',
+            'return A?A==="tahsilat":!a1(Q==null?void 0:Q.type)',
           );
         await import(URL.createObjectURL(new Blob([corrected], { type: 'text/javascript' })));
       })();
