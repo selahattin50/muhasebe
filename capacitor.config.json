@@ -11,22 +11,28 @@
   "android": {
     "allowMixedContent": true,
     "captureInput": true,
-    "webContentsDebuggingEnabled": true
+    "webContentsDebuggingEnabled": true,
+    "backgroundColor": "#20306a"
   },
   "plugins": {
     "SplashScreen": {
-      "launchShowDuration": 2000,
-      "backgroundColor": "#4F46E5",
-      "showSpinner": true,
-      "spinnerColor": "#FFFFFF"
+      "launchShowDuration": 0,
+      "launchAutoHide": true,
+      "backgroundColor": "#20306a",
+      "showSpinner": false,
+      "androidScaleType": "CENTER_CROP",
+      "splashFullScreen": true,
+      "splashImmersive": true
     },
     "StatusBar": {
       "style": "dark",
-      "backgroundColor": "#4F46E5"
+      "backgroundColor": "#20306a"
     },
     "FirebaseAuthentication": {
       "skipNativeAuth": false,
-      "providers": ["google.com"]
+      "providers": [
+        "google.com"
+      ]
     }
   }
 }
