@@ -15,14 +15,14 @@
   },
   "plugins": {
     "SplashScreen": {
-      "launchShowDuration": 2000,
-      "backgroundColor": "#4F46E5",
-      "showSpinner": true,
+      "launchShowDuration": 0,
+      "backgroundColor": "#0f172a",
+      "showSpinner": false,
       "spinnerColor": "#FFFFFF"
     },
     "StatusBar": {
       "style": "dark",
-      "backgroundColor": "#4F46E5"
+      "backgroundColor": "#0f172a"
     },
     "FirebaseAuthentication": {
       "skipNativeAuth": false,

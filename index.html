@@ -6,10 +6,11 @@
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <meta name="theme-color" content="#4F46E5">
+    <meta name="theme-color" content="#0f172a">
     <link rel="manifest" href="./manifest.json">
     <link rel="icon" type="image/png" href="./logo.png" />
     <title>Ön Muhasebe</title>
+    <style>html, body, #root { margin: 0; min-height: 100%; background: #0f172a; }</style>
     <!-- 2.0.1 APK'nin özgün web arayüzü: görsel ve ekran yapısı birebirdir. -->
   </head>
   <body>
@@ -24,16 +25,48 @@
             'type:cB?"Borc":"Alacak",document_type:cB?"tahsilat":"odeme"',
             'type:cB?"Alacak":"Borc",document_type:cB?"tahsilat":"odeme"',
           )
-          // Cari seçildiğinde bakiyeyi giriş alanlarına otomatik yazan etkiyi kaldır.
+          .replace(
+            'if(!QQ){Pg(""),AC("");return}const UA=String(QQ.type||"").toLowerCase().trim(),DB=UA==="borç"||UA==="borc"||UA.startsWith("bor"),EB=JN(Math.abs(Number(QQ.amount)||0));Pg(DB?EB:""),AC(DB?"":EB)},[QQ])',
+            'if(!QQ||!eQ){Pg(""),AC("");return}Pg(""),AC("")},[QQ,eQ])',
+          )
+          // Seçilen carinin bakiyesini cari türüne göre doğru alana aktar.
           .replace(
             /const DB=dc\(UA\.balance\),EB=String\(UA\.type\|\|""\)\.toLowerCase\(\);let zB=null;[\s\S]*?\},\[eQ,R,QQ\]\);/,
-            'zg(null),Pg(""),AC("")},[eQ,R,QQ]);',
+            'const DB=dc(UA.balance),EB=String(UA.type||"").toLowerCase(),zB=DB===0?null:EB.includes("satıcı")||EB.includes("satici")?"borc":"alacak",NQ=DB!==0?JN(Math.abs(DB)):"";zg(zB),zB==="borc"?(Pg(NQ),AC("")):zB==="alacak"?(AC(NQ),Pg("")):(Pg(""),AC(""))},[eQ,R,QQ]);',
           )
           // At() fonksiyonu: document_type yoksa eski kayıtlarda isBorc yerine isAlacak kullan.
           // Alacak (tahsilat) = kasa girişi, Borç (ödeme) = kasa çıkışı olmalı.
           .replace(
             'return A?A==="tahsilat":a1(Q==null?void 0:Q.type)',
             'return A?A==="tahsilat":!a1(Q==null?void 0:Q.type)',
+          )
+          .replace(
+            'onChange:v=>{Pg(v.target.value),v.target.value&&AC("")}',
+            'onChange:v=>{const QA=v.target.value.replace(/[^\\d,]/g,"");const [sA,YA]=QA.split(",");const EA=sA.replace(/^0+(?=\\d)/,"").replace(/\\B(?=(\\d{3})+(?!\\d))/g,".")+(YA!==void 0?`,${YA.slice(0,2)}`:"");Pg(EA),EA&&AC("")}',
+          )
+          .replace(
+            'onChange:v=>{AC(v.target.value),v.target.value&&Pg("")}',
+            'onChange:v=>{const QA=v.target.value.replace(/[^\\d,]/g,"");const [sA,YA]=QA.split(",");const EA=sA.replace(/^0+(?=\\d)/,"").replace(/\\B(?=(\\d{3})+(?!\\d))/g,".")+(YA!==void 0?`,${YA.slice(0,2)}`:"");AC(EA),EA&&Pg("")}',
+          )
+          .replace(
+            'head:[["Tarih","Tür","İşlem","Borç","Alacak","Bakiye"]],body:EA,',
+            'head:[["Tarih","Tür","İşlem","Borç","Alacak","Bakiye"]],foot:[[{content:"",colSpan:4,styles:{fillColor:[255,255,255],textColor:[255,255,255],lineWidth:0}},{content:"Bakiye",styles:{fillColor:[30,64,175],textColor:[255,255,255],fontSize:10,fontStyle:"bold",halign:"right"}},{content:`₺${Math.abs(kB).toLocaleString("tr-TR",{minimumFractionDigits:2})} ${kB>0?"A":kB<0?"B":""}`,styles:{fillColor:[30,64,175],textColor:[255,255,255],fontSize:10,fontStyle:"bold",halign:"right"}}]],showFoot:"lastPage",body:EA,',
+          )
+          .replace(
+            'didParseCell:ZA=>{if(ZA.column.index===5&&ZA.section==="body"){',
+            'didParseCell:ZA=>{if(ZA.section==="head"&&ZA.column.index>=3){ZA.cell.styles.halign="center"}if(ZA.section==="body"&&ZA.column.index>=3){ZA.cell.styles.halign="right"}if(ZA.column.index===5&&ZA.section==="body"){',
+          )
+          .replace(
+            'Of=Q=>{const A=String(Q||"").replace(/[^0-9,.\\-]/g,"").replace(",",".");if(!A||A==="."||A==="-")return null;const B=Number(A);return Number.isFinite(B)?Mc(B):null}',
+            'Of=Q=>{const A=String(Q||"").replace(/[^0-9,.\\-]/g,"");const B=A.includes(",")?A.replace(/\\./g,"").replace(",","."):A;if(!B||B==="."||B==="-")return null;const C=Number(B);return Number.isFinite(C)?Mc(C):null}',
+          )
+          .replace(
+            'R=hI(a-G,2),K=hI(G*(e/100),2),z=hI(G+K,2);return{factor:E,realQty:I,amountQty:D,unitPrice:c,discountedUnitPrice:F,grossAmount:a,subtotal:G,discountAmount:R,taxAmount:K,taxRate:e,lineTotal:z}',
+            'R=hI(a-G,2),S=ZF(B)==="Satış",FQ=S?hI(G/(1+e/100),2):R===1.5?a:G,K=S?hI(G-FQ,2):hI(FQ*(e/100),2),z=S?G:hI(FQ+K,2);return{factor:E,realQty:I,amountQty:D,unitPrice:c,discountedUnitPrice:F,grossAmount:a,subtotal:FQ,discountAmount:S?R:R===1.5?0:R,taxAmount:K,taxRate:e,lineTotal:z}',
+          )
+          .replace(
+            'VA=()=>hI(XA()+SA(),2)',
+            'VA=()=>hI(XA()+SA(),2)',
           );
         await import(URL.createObjectURL(new Blob([corrected], { type: 'text/javascript' })));
       })();
@@ -204,10 +237,35 @@
           correctPickerBalances();
         };
 
+        let lastSelectedCariSummary = '';
+        const syncEntryAmountToSummary = () => {
+          const summary = document.querySelector('.movement-entry-cari-summary');
+          if (!summary) return;
+          const summaryText = summary.textContent || '';
+          if (summaryText === lastSelectedCariSummary) return;
+          lastSelectedCariSummary = summaryText;
+          setTimeout(() => {
+            if (summary.textContent !== summaryText) return;
+            const amountElement = Array.from(summary.querySelectorAll('span')).find((span) => span.textContent?.includes('₺'));
+            const amount = amountOf(amountElement?.textContent);
+            const isDebt = /borç|borc/i.test(summaryText);
+            const setInput = (name, value) => {
+              const input = document.querySelector(`input[name="${name}"]`);
+              if (!input) return;
+              const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
+              setter?.call(input, value);
+              input.dispatchEvent(new Event('input', { bubbles: true }));
+            };
+            setInput('borc_amount', isDebt ? format(amount) : '');
+            setInput('alacak_amount', !isDebt && !/denk/i.test(summaryText) ? format(amount) : '');
+          }, 100);
+        };
+
         const refreshBalances = () => {
           correctReportTotals();
           correctPickerBalances();
           correctStoredBalanceDisplays();
+          syncEntryAmountToSummary();
         };
         const observer = new MutationObserver(refreshBalances);
         observer.observe(document.documentElement, { childList: true, subtree: true, characterData: true });
