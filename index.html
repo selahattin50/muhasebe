@@ -9,6 +9,7 @@
     <meta name="theme-color" content="#0f172a">
     <link rel="manifest" href="./manifest.json">
     <link rel="icon" type="image/png" href="./logo.png" />
+    <link rel="preload" href="/assets/index-Cm4a6Zcb.js" as="script" />
     <title>Ön Muhasebe</title>
     <style>html, body, #root { margin: 0; min-height: 100%; background: #0f172a; }</style>
     <!-- 2.0.1 APK'nin özgün web arayüzü: görsel ve ekran yapısı birebirdir. -->
@@ -50,11 +51,19 @@
           )
           .replace(
             'head:[["Tarih","Tür","İşlem","Borç","Alacak","Bakiye"]],body:EA,',
-            'head:[["Tarih","Tür","İşlem","Borç","Alacak","Bakiye"]],foot:[[{content:"",colSpan:4,styles:{fillColor:[255,255,255],textColor:[255,255,255],lineWidth:0}},{content:"Bakiye",styles:{fillColor:[30,64,175],textColor:[255,255,255],fontSize:10,fontStyle:"bold",halign:"right"}},{content:`₺${Math.abs(kB).toLocaleString("tr-TR",{minimumFractionDigits:2})} ${kB>0?"A":kB<0?"B":""}`,styles:{fillColor:[30,64,175],textColor:[255,255,255],fontSize:10,fontStyle:"bold",halign:"right"}}]],showFoot:"lastPage",body:EA,',
+            'head:[["Tarih","Tür","İşlem","Borç","Alacak"]],foot:[[{content:"",colSpan:3,styles:{fillColor:[255,255,255],textColor:[255,255,255],lineWidth:0}},{content:"Bakiye",styles:{fillColor:[37,99,235],textColor:[255,255,255],fontSize:12,fontStyle:"bold",halign:"left",valign:"middle",cellPadding:{top:1.5,bottom:1.5,left:0,right:1.5},minCellHeight:9}},{content:(()=>{const currentBalance=window.__cariLedgerBalances?.balances?.get(String(eQ));const balance=Number.isFinite(currentBalance)?currentBalance:kB;return `₺${Math.abs(balance).toLocaleString("tr-TR",{minimumFractionDigits:2})}`})(),styles:{fillColor:[37,99,235],textColor:[255,255,255],fontSize:13,fontStyle:"bold",halign:"right",valign:"middle",cellPadding:{top:1.5,bottom:1.5,left:1.5,right:6},minCellHeight:9}}]],showFoot:"lastPage",body:EA.map(row=>row.slice(0,5)),',
+          )
+          .replace(
+            /foot:\[\["TOPLAM"[\s\S]*?\]\],startY:/g,
+            'startY:',
           )
           .replace(
             'didParseCell:ZA=>{if(ZA.column.index===5&&ZA.section==="body"){',
             'didParseCell:ZA=>{if(ZA.section==="head"&&ZA.column.index>=3){ZA.cell.styles.halign="center"}if(ZA.section==="body"&&ZA.column.index>=3){ZA.cell.styles.halign="right"}if(ZA.column.index===5&&ZA.section==="body"){',
+          )
+          .replace(
+            /UB!=null&&UB\.includes\(/g,
+            'String(UB).includes(',
           )
           .replace(
             'Of=Q=>{const A=String(Q||"").replace(/[^0-9,.\\-]/g,"").replace(",",".");if(!A||A==="."||A==="-")return null;const B=Number(A);return Number.isFinite(B)?Mc(B):null}',
@@ -200,9 +209,32 @@
           const report = document.querySelector('.movement-report-page');
           if (!report) return;
 
+          const parseDate = (value) => {
+            const clean = String(value || '').trim().split('T')[0].split(' ')[0];
+            if (!clean || /başlangıç|bitiş|başlang|biti/i.test(clean)) return null;
+            const separator = clean.includes('.') ? '.' : clean.includes('/') ? '/' : clean.includes('-') ? '-' : null;
+            if (separator) {
+              const parts = clean.split(separator).map(Number);
+              if (parts.length === 3 && parts.every(Number.isFinite)) {
+                if (String(parts[0]).length === 4) return new Date(parts[0], parts[1] - 1, parts[2]);
+                if (String(parts[2]).length === 4) return new Date(parts[2], parts[1] - 1, parts[0]);
+              }
+            }
+            const parsed = new Date(value);
+            return Number.isNaN(parsed.getTime()) ? null : parsed;
+          };
+
+          const dateButtons = report.querySelectorAll('.movement-filter-date-button');
+          const startDate = parseDate(dateButtons[0]?.textContent);
+          const endDate = parseDate(dateButtons[1]?.textContent);
+          if (endDate) endDate.setHours(23, 59, 59, 999);
+
           let borc = 0;
           let alacak = 0;
           report.querySelectorAll('.movement-report-row').forEach((row) => {
+            const rowDate = parseDate(row.querySelector('.movement-report-date')?.textContent);
+            if (rowDate && ((startDate && rowDate < startDate) || (endDate && rowDate > endDate))) return;
+
             const type = row.querySelector('.movement-report-badge')?.textContent
               ?.trim().toLocaleLowerCase('tr-TR') || '';
             const amountElement = row.querySelector('.movement-report-amount');
@@ -222,7 +254,6 @@
             }
           });
 
-          const bakiye = alacak - borc;
           const setValue = (element, value) => {
             if (element.textContent !== value) element.textContent = value;
           };
@@ -232,7 +263,7 @@
             if (!value) return;
             if (label === 'borç' || label === 'borc') setValue(value, format(borc));
             if (label === 'alacak') setValue(value, format(alacak));
-            if (label === 'bakiye') setValue(value, format(Math.abs(bakiye)));
+            if (label === 'bakiye') setValue(value, format(Math.abs(alacak - borc)));
           });
           correctPickerBalances();
         };
